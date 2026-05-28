@@ -1,0 +1,240 @@
+{
+  "table_name": "product_sales",
+  "row_count": 200000,
+  "column_count": 14,
+  "columns": [
+    {
+      "name": "Order_ID",
+      "type": "integer",
+      "nullable": true,
+      "is_id": true,
+      "column_aliases": [
+        "mã đơn hàng",
+        "id đơn hàng"
+      ],
+      "distinct_count": 200000
+    },
+    {
+      "name": "Order_Date",
+      "type": "date",
+      "nullable": true,
+      "is_id": false,
+      "column_aliases": [
+        "ngày",
+        "ngày đặt"
+      ],
+      "min": "2023-01-01",
+      "max": "2024-12-31",
+      "date_format": "YYYY-MM-DD"
+    },
+    {
+      "name": "Customer_Name",
+      "type": "text",
+      "nullable": true,
+      "is_id": false,
+      "column_aliases": [
+        "khách hàng",
+        "tên khách hàng"
+      ],
+      "distinct_count": 120230,
+      "sample_values": [
+        "Aaron Abbott",
+        "Aaron Alexander",
+        "Aaron Ali",
+        "Aaron Allen",
+        "Aaron Alvarez"
+      ]
+    },
+    {
+      "name": "City",
+      "type": "text",
+      "nullable": true,
+      "is_id": false,
+      "column_aliases": [
+        "thành phố"
+      ],
+      "distinct_count": 108,
+      "sample_values": [
+        "Albuquerque",
+        "Annapolis",
+        "Atlanta",
+        "Augusta",
+        "Aurora"
+      ]
+    },
+    {
+      "name": "State",
+      "type": "text",
+      "nullable": true,
+      "is_id": false,
+      "column_aliases": [
+        "bang",
+        "tiểu bang"
+      ],
+      "distinct_count": 47,
+      "sample_values": [
+        "Alabama",
+        "Arizona",
+        "Arkansas",
+        "California",
+        "Colorado"
+      ]
+    },
+    {
+      "name": "Region",
+      "type": "text",
+      "nullable": true,
+      "is_id": false,
+      "column_aliases": [
+        "khu vực",
+        "vùng",
+        "miền"
+      ],
+      "distinct_count": 4,
+      "all_values": [
+        "Centre",
+        "East",
+        "South",
+        "West"
+      ]
+    },
+    {
+      "name": "Country",
+      "type": "text",
+      "nullable": true,
+      "is_id": false,
+      "column_aliases": [
+        "quốc gia",
+        "nước"
+      ],
+      "distinct_count": 1,
+      "all_values": [
+        "United States"
+      ]
+    },
+    {
+      "name": "Category",
+      "type": "text",
+      "nullable": true,
+      "is_id": false,
+      "column_aliases": [
+        "danh mục",
+        "loại",
+        "nhóm"
+      ],
+      "distinct_count": 4,
+      "all_values": [
+        "Accessories",
+        "Clothing & Apparel",
+        "Electronics",
+        "Home & Furniture"
+      ]
+    },
+    {
+      "name": "Sub_Category",
+      "type": "text",
+      "nullable": true,
+      "is_id": false,
+      "column_aliases": [
+        "danh mục con",
+        "nhóm con"
+      ],
+      "distinct_count": 19,
+      "all_values": [
+        "Bags",
+        "Bedding",
+        "Footwear",
+        "Furniture",
+        "Home Appliances",
+        "Home Decor",
+        "Kids Wear",
+        "Kitchenware",
+        "Laptops",
+        "Men's Wear",
+        "Small Electronics",
+        "Smartphones",
+        "Sportswear",
+        "Storage",
+        "Tablets",
+        "TVs & Audio",
+        "Wearable Accessories",
+        "Wearables",
+        "Women's Wear"
+      ]
+    },
+    {
+      "name": "Product_Name",
+      "type": "text",
+      "nullable": true,
+      "is_id": false,
+      "column_aliases": [
+        "sản phẩm",
+        "tên sản phẩm"
+      ],
+      "distinct_count": 49,
+      "sample_values": [
+        "Adidas Tracksuit",
+        "Apple iPhone 14",
+        "Apple Watch",
+        "Ashley Recliner",
+        "Backpack"
+      ]
+    },
+    {
+      "name": "Quantity",
+      "type": "integer",
+      "nullable": true,
+      "is_id": false,
+      "column_aliases": [
+        "số lượng",
+        "sl"
+      ],
+      "distinct_count": 11,
+      "min": 1,
+      "max": 11,
+      "avg": 1.85
+    },
+    {
+      "name": "Unit_Price",
+      "type": "double precision",
+      "nullable": true,
+      "is_id": false,
+      "column_aliases": [
+        "giá",
+        "đơn giá"
+      ],
+      "distinct_count": 80524,
+      "min": 17.03,
+      "max": 1432,
+      "avg": 382.86
+    },
+    {
+      "name": "Revenue",
+      "type": "double precision",
+      "nullable": true,
+      "is_id": false,
+      "column_aliases": [
+        "doanh thu",
+        "tiền"
+      ],
+      "distinct_count": 106202,
+      "min": 17.03,
+      "max": 9014.25,
+      "avg": 712.04
+    },
+    {
+      "name": "Profit",
+      "type": "double precision",
+      "nullable": true,
+      "is_id": false,
+      "column_aliases": [
+        "lợi nhuận",
+        "lãi"
+      ],
+      "distinct_count": 46935,
+      "min": 3.92,
+      "max": 2763.72,
+      "avg": 157.74
+    }
+  ]
+}

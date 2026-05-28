@@ -1,0 +1,555 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Text-to-SQL Test Case Viewer</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --panel: #ffffff;
+      --ink: #172033;
+      --muted: #667085;
+      --line: #d8e0eb;
+      --accent: #087f8c;
+      --good: #217a45;
+      --bad: #b42318;
+      --warn: #b76e00;
+      --code: #111827;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 14px/1.45 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    header {
+      min-height: 58px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 12px 20px;
+      background: #fff;
+      border-bottom: 1px solid var(--line);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.2;
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: 320px minmax(0, 1fr);
+      gap: 16px;
+      padding: 16px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .panel-head {
+      padding: 13px 14px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .panel-head h2 {
+      margin: 0;
+      font-size: 14px;
+    }
+
+    .panel-body { padding: 14px; }
+
+    .stack { display: grid; gap: 12px; }
+
+    label {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    input, select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 9px 10px;
+      color: var(--ink);
+      font: inherit;
+      background: #fff;
+      outline: none;
+    }
+
+    input:focus, select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(8, 127, 140, 0.12);
+    }
+
+    button {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 9px 10px;
+      background: #fff;
+      color: var(--ink);
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .stat {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 9px;
+      background: #fbfcfe;
+    }
+
+    .stat b {
+      display: block;
+      font-size: 20px;
+      line-height: 1.1;
+    }
+
+    .stat span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 3px 8px;
+      background: #fff;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .badge.good { color: var(--good); border-color: rgba(33, 122, 69, 0.35); }
+    .badge.bad { color: var(--bad); border-color: rgba(180, 35, 24, 0.35); }
+    .badge.warn { color: var(--warn); border-color: rgba(183, 110, 0, 0.35); }
+
+    .table-wrap {
+      overflow: auto;
+      max-height: calc(100vh - 140px);
+    }
+
+    table {
+      width: 100%;
+      min-width: 1200px;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 9px 10px;
+      vertical-align: top;
+      text-align: left;
+    }
+
+    th {
+      position: sticky;
+      top: 0;
+      background: #f1f5f9;
+      color: var(--muted);
+      font-size: 12px;
+      z-index: 2;
+    }
+
+    tr:hover td { background: #fbfcfe; }
+
+    td.id {
+      width: 48px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    td.question { min-width: 250px; }
+
+    pre {
+      margin: 0;
+      max-width: 520px;
+      overflow: auto;
+      border-radius: 8px;
+      background: var(--code);
+      color: #eef7ff;
+      padding: 10px;
+      font-size: 12px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+    }
+
+    .muted { color: var(--muted); }
+    .error-text { color: var(--bad); }
+
+    .notice {
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      color: var(--muted);
+      background: #fbfcfe;
+    }
+
+    @media (max-width: 920px) {
+      main { grid-template-columns: 1fr; }
+      .table-wrap { max-height: none; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Text-to-SQL Test Case Viewer</h1>
+    <div class="button-row">
+      <span class="badge" id="source-badge">loading</span>
+      <span class="badge" id="row-badge">0 rows</span>
+    </div>
+  </header>
+
+  <main>
+    <aside class="panel">
+      <div class="panel-head">
+        <h2>Controls</h2>
+      </div>
+      <div class="panel-body stack">
+        <div class="button-row">
+          <button id="show-results" class="active" type="button">results_v1</button>
+          <button id="show-tests" type="button">test_cases</button>
+        </div>
+
+        <div>
+          <label for="search">Search</label>
+          <input id="search" placeholder="question, SQL, error..." />
+        </div>
+
+        <div>
+          <label for="category">Category</label>
+          <select id="category"></select>
+        </div>
+
+        <div>
+          <label for="status-filter">Status</label>
+          <select id="status-filter">
+            <option value="">All</option>
+            <option value="correct">Correct only</option>
+            <option value="wrong">Wrong only</option>
+            <option value="valid">Valid only</option>
+            <option value="invalid">Invalid only</option>
+            <option value="execute">Execute expected</option>
+            <option value="block">Block expected</option>
+          </select>
+        </div>
+
+        <div class="stat-grid">
+          <div class="stat"><b id="stat-total">0</b><span>Total</span></div>
+          <div class="stat"><b id="stat-shown">0</b><span>Shown</span></div>
+          <div class="stat"><b id="stat-correct">0</b><span>Correct</span></div>
+          <div class="stat"><b id="stat-wrong">0</b><span>Wrong</span></div>
+        </div>
+
+        <div>
+          <label for="file-input">Fallback local CSV</label>
+          <input id="file-input" type="file" accept=".csv,text/csv" />
+        </div>
+
+        <div class="notice">
+          Chạy qua local server để tự load CSV:
+          <br />
+          <code>python -m http.server 7870</code>
+          <br />
+          rồi mở <code>http://127.0.0.1:7870/evaluation/testcase_viewer.html</code>.
+        </div>
+      </div>
+    </aside>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2 id="table-title">results_v1.csv</h2>
+        <div class="button-row">
+          <span class="badge good" id="valid-rate">valid: n/a</span>
+          <span class="badge warn" id="accuracy-rate">accuracy: n/a</span>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead id="thead"></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const paths = {
+      results: "results_v1.csv",
+      tests: "../data/test_cases_v1.csv"
+    };
+
+    let mode = "results";
+    let rows = [];
+    let filteredRows = [];
+
+    const els = {
+      sourceBadge: document.getElementById("source-badge"),
+      rowBadge: document.getElementById("row-badge"),
+      showResults: document.getElementById("show-results"),
+      showTests: document.getElementById("show-tests"),
+      search: document.getElementById("search"),
+      category: document.getElementById("category"),
+      statusFilter: document.getElementById("status-filter"),
+      fileInput: document.getElementById("file-input"),
+      statTotal: document.getElementById("stat-total"),
+      statShown: document.getElementById("stat-shown"),
+      statCorrect: document.getElementById("stat-correct"),
+      statWrong: document.getElementById("stat-wrong"),
+      validRate: document.getElementById("valid-rate"),
+      accuracyRate: document.getElementById("accuracy-rate"),
+      tableTitle: document.getElementById("table-title"),
+      thead: document.getElementById("thead"),
+      tbody: document.getElementById("tbody")
+    };
+
+    function parseCsv(text) {
+      const out = [];
+      let row = [];
+      let field = "";
+      let inQuotes = false;
+
+      for (let i = 0; i < text.length; i += 1) {
+        const char = text[i];
+        const next = text[i + 1];
+
+        if (char === '"') {
+          if (inQuotes && next === '"') {
+            field += '"';
+            i += 1;
+          } else {
+            inQuotes = !inQuotes;
+          }
+        } else if (char === "," && !inQuotes) {
+          row.push(field);
+          field = "";
+        } else if ((char === "\n" || char === "\r") && !inQuotes) {
+          if (char === "\r" && next === "\n") i += 1;
+          row.push(field);
+          if (row.some((value) => value.length > 0)) out.push(row);
+          row = [];
+          field = "";
+        } else {
+          field += char;
+        }
+      }
+
+      row.push(field);
+      if (row.some((value) => value.length > 0)) out.push(row);
+
+      const headers = out.shift() || [];
+      return out.map((values) => {
+        const item = {};
+        headers.forEach((header, index) => {
+          item[header] = values[index] || "";
+        });
+        return item;
+      });
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function isTrue(value) {
+      return String(value).toLowerCase() === "true";
+    }
+
+    function badge(value, truthyText = "true", falsyText = "false") {
+      const ok = isTrue(value);
+      return `<span class="badge ${ok ? "good" : "bad"}">${ok ? truthyText : falsyText}</span>`;
+    }
+
+    function sqlBlock(value) {
+      return value ? `<pre>${escapeHtml(value)}</pre>` : '<span class="muted">(empty)</span>';
+    }
+
+    function currentColumns() {
+      if (mode === "tests") {
+        return [
+          ["id", "ID"],
+          ["category", "Category"],
+          ["question", "Question"],
+          ["expected_behavior", "Expected"],
+          ["gold_sql", "Gold SQL"]
+        ];
+      }
+
+      return [
+        ["id", "ID"],
+        ["category", "Category"],
+        ["question", "Question"],
+        ["is_correct", "Correct"],
+        ["is_valid", "Valid"],
+        ["execution_success", "Executed"],
+        ["repair_attempted", "Repair"],
+        ["gold_sql", "Gold SQL"],
+        ["generated_sql", "Generated SQL"],
+        ["error", "Error"]
+      ];
+    }
+
+    function renderCell(row, key) {
+      if (key === "id") return `<td class="id">${escapeHtml(row[key])}</td>`;
+      if (key === "question") return `<td class="question">${escapeHtml(row[key])}</td>`;
+      if (["gold_sql", "generated_sql"].includes(key)) return `<td>${sqlBlock(row[key])}</td>`;
+      if (["is_correct", "is_valid", "execution_success", "repair_attempted"].includes(key)) {
+        return `<td>${badge(row[key])}</td>`;
+      }
+      if (key === "expected_behavior") {
+        const kind = row[key] === "block" ? "bad" : "good";
+        return `<td><span class="badge ${kind}">${escapeHtml(row[key])}</span></td>`;
+      }
+      if (key === "error") {
+        return `<td class="error-text">${escapeHtml(row[key])}</td>`;
+      }
+      return `<td>${escapeHtml(row[key])}</td>`;
+    }
+
+    function populateCategories() {
+      const categories = [...new Set(rows.map((row) => row.category).filter(Boolean))].sort();
+      els.category.innerHTML = '<option value="">All</option>' +
+        categories.map((category) => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`).join("");
+    }
+
+    function applyFilters() {
+      const term = els.search.value.trim().toLowerCase();
+      const category = els.category.value;
+      const status = els.statusFilter.value;
+
+      filteredRows = rows.filter((row) => {
+        if (category && row.category !== category) return false;
+
+        if (term) {
+          const haystack = Object.values(row).join(" ").toLowerCase();
+          if (!haystack.includes(term)) return false;
+        }
+
+        if (status === "correct" && !isTrue(row.is_correct)) return false;
+        if (status === "wrong" && isTrue(row.is_correct)) return false;
+        if (status === "valid" && !isTrue(row.is_valid)) return false;
+        if (status === "invalid" && isTrue(row.is_valid)) return false;
+        if (status === "execute" && row.expected_behavior !== "execute") return false;
+        if (status === "block" && row.expected_behavior !== "block") return false;
+
+        return true;
+      });
+
+      render();
+    }
+
+    function pct(value, total) {
+      return total ? `${((value / total) * 100).toFixed(1)}%` : "n/a";
+    }
+
+    function renderStats() {
+      const total = rows.length;
+      const correct = rows.filter((row) => isTrue(row.is_correct)).length;
+      const wrong = rows.filter((row) => row.is_correct && !isTrue(row.is_correct)).length;
+      const executeRows = rows.filter((row) => row.expected_behavior !== "block");
+      const valid = executeRows.filter((row) => isTrue(row.is_valid)).length;
+
+      els.statTotal.textContent = total;
+      els.statShown.textContent = filteredRows.length;
+      els.statCorrect.textContent = correct;
+      els.statWrong.textContent = wrong;
+      els.rowBadge.textContent = `${filteredRows.length}/${total} rows`;
+      els.validRate.textContent = `valid: ${valid}/${executeRows.length} (${pct(valid, executeRows.length)})`;
+      els.accuracyRate.textContent = `accuracy: ${correct}/${executeRows.length || total} (${pct(correct, executeRows.length || total)})`;
+    }
+
+    function render() {
+      const columns = currentColumns();
+      els.tableTitle.textContent = mode === "results" ? "results_v1.csv" : "test_cases_v1.csv";
+      els.thead.innerHTML = `<tr>${columns.map(([, label]) => `<th>${escapeHtml(label)}</th>`).join("")}</tr>`;
+      els.tbody.innerHTML = filteredRows.map((row) => {
+        return `<tr>${columns.map(([key]) => renderCell(row, key)).join("")}</tr>`;
+      }).join("");
+      renderStats();
+    }
+
+    async function loadCsv(nextMode) {
+      mode = nextMode;
+      els.showResults.classList.toggle("active", mode === "results");
+      els.showTests.classList.toggle("active", mode === "tests");
+      els.sourceBadge.textContent = "loading";
+
+      try {
+        const response = await fetch(paths[mode], { cache: "no-store" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        rows = parseCsv(await response.text());
+        els.sourceBadge.textContent = paths[mode];
+      } catch (error) {
+        rows = [];
+        els.sourceBadge.textContent = "choose local CSV";
+        els.tbody.innerHTML = `<tr><td colspan="10" class="muted">Cannot auto-load CSV: ${escapeHtml(error.message)}. Use the file picker on the left.</td></tr>`;
+      }
+
+      populateCategories();
+      applyFilters();
+    }
+
+    els.showResults.addEventListener("click", () => loadCsv("results"));
+    els.showTests.addEventListener("click", () => loadCsv("tests"));
+    els.search.addEventListener("input", applyFilters);
+    els.category.addEventListener("change", applyFilters);
+    els.statusFilter.addEventListener("change", applyFilters);
+    els.fileInput.addEventListener("change", async (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+      rows = parseCsv(await file.text());
+      els.sourceBadge.textContent = file.name;
+      populateCategories();
+      applyFilters();
+    });
+
+    loadCsv("results");
+  </script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+# Secrets and local environment
+.env
+*.env
+text2sql/.env
+
+# Reports and local deliverables
+text2sql/reports/
+notes/
+papers/
+
+# Large/local data artifacts
+text2sql/data/product_sales.csv
+text2sql/product_sales.db
+*.db
+*.sqlite
+*.sqlite3
+
+# Generated Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Evaluation/runtime generated output
+text2sql/evaluation/results_v1.csv
+
+# Local editor and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local logs
+*.log

@@ -1,0 +1,47 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: text2sql_postgres
+    environment:
+      POSTGRES_USER: text2sql_user
+      POSTGRES_PASSWORD: text2sql_pass
+      POSTGRES_DB: text2sql_db
+    ports:
+      - "55432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  postgres_init:
+    image: postgres:15
+    container_name: text2sql_postgres_init
+    depends_on:
+      - postgres
+    entrypoint: ["/bin/bash"]
+    command:
+      - "-c"
+      - |
+        set -e
+        until pg_isready -h postgres -U text2sql_user -d text2sql_db; do
+          sleep 1
+        done
+
+        export PGPASSWORD=text2sql_pass
+        PSQL="psql -v ON_ERROR_STOP=1 -h postgres -U text2sql_user -d text2sql_db"
+
+        if ! $$PSQL -tAc "SELECT 1 FROM pg_roles WHERE rolname = 'readonly_user';" | grep -q 1; then
+          $$PSQL -c "CREATE USER readonly_user WITH PASSWORD 'readonly_pass';"
+        fi
+
+        $$PSQL -c "GRANT CONNECT ON DATABASE text2sql_db TO readonly_user;"
+        $$PSQL -c "GRANT USAGE ON SCHEMA public TO readonly_user;"
+        $$PSQL -c "GRANT SELECT ON ALL TABLES IN SCHEMA public TO readonly_user;"
+        $$PSQL -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO readonly_user;"
+        $$PSQL -c "REVOKE USAGE ON SCHEMA information_schema FROM PUBLIC;"
+        $$PSQL -c "REVOKE SELECT ON ALL TABLES IN SCHEMA information_schema FROM PUBLIC;"
+        $$PSQL -c "REVOKE ALL ON information_schema.tables FROM readonly_user;"
+        $$PSQL -c "REVOKE ALL ON information_schema.columns FROM readonly_user;"
+
+volumes:
+  pgdata:
