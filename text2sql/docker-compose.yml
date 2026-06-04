@@ -2,7 +2,7 @@ version: "3.9"
 
 services:
   postgres:
-    image: postgres:15
+    image: pgvector/pgvector:pg15
     container_name: text2sql_postgres
     environment:
       POSTGRES_USER: text2sql_user
@@ -14,7 +14,7 @@ services:
       - pgdata:/var/lib/postgresql/data
 
   postgres_init:
-    image: postgres:15
+    image: pgvector/pgvector:pg15
     container_name: text2sql_postgres_init
     depends_on:
       - postgres
@@ -34,6 +34,7 @@ services:
           $$PSQL -c "CREATE USER readonly_user WITH PASSWORD 'readonly_pass';"
         fi
 
+        $$PSQL -c "CREATE EXTENSION IF NOT EXISTS vector;"
         $$PSQL -c "GRANT CONNECT ON DATABASE text2sql_db TO readonly_user;"
         $$PSQL -c "GRANT USAGE ON SCHEMA public TO readonly_user;"
         $$PSQL -c "GRANT SELECT ON ALL TABLES IN SCHEMA public TO readonly_user;"

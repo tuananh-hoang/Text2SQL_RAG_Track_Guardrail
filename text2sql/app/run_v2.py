@@ -101,7 +101,42 @@ def run_question_v2(
 
     add_trace_step(trace_steps, "Nhận câu hỏi", "done", f'Câu hỏi: "{question}"', {"question": question})
 
-    retrieval = retrieve_schema(question, mode=mode)
+    try:
+        retrieval = retrieve_schema(question, mode=mode)
+    except RuntimeError as exc:
+        add_trace_step(
+            trace_steps,
+            "Retrieve schema entities",
+            "error",
+            str(exc),
+            {
+                "vector_store": "pgvector",
+                "mode": mode,
+                "build_index_command": f"python -m text2sql.schema.build_schema_pgvector_index --mode {mode} --rebuild",
+            },
+        )
+        result = {
+            "trace_id": trace_id,
+            "question": question,
+            "mode": mode,
+            "sql": "",
+            "valid": False,
+            "execution_success": False,
+            "row_count": 0,
+            "data": None,
+            "explanation": "",
+            "error": str(exc),
+            "trace_steps": trace_steps,
+            "query_decomposition": {},
+            "matched_entities": [],
+            "column_scores": [],
+            "table_scores": [],
+            "selected_tables": [],
+            "selected_columns": [],
+            "retrieval_metadata": {"vector_store": "pgvector"},
+        }
+        write_trace_record(result, trace_id, started_at, trace_steps, question, mode)
+        return result
     decomposition = retrieval["query_decomposition"]
     add_trace_step(
         trace_steps,
@@ -121,6 +156,7 @@ def run_question_v2(
         "done",
         f"Matched {len(retrieval['matched_entities'])} schema entities.",
         {
+            **retrieval.get("retrieval_metadata", {}),
             "matched_entities": retrieval["matched_entities"],
         },
     )
@@ -297,6 +333,11 @@ def write_trace_record(
         "final_status": final_status_from_result(result),
         "query_decomposition": result.get("query_decomposition"),
         "fallback_used": (result.get("query_decomposition") or {}).get("fallback_used", False),
+        "retrieval_metadata": result.get("retrieval_metadata"),
+        "vector_store": (result.get("retrieval_metadata") or {}).get("vector_store"),
+        "embedding_model": (result.get("retrieval_metadata") or {}).get("embedding_model"),
+        "embedding_dim": (result.get("retrieval_metadata") or {}).get("embedding_dim"),
+        "pgvector_table": (result.get("retrieval_metadata") or {}).get("pgvector_table"),
         "matched_entities": result.get("matched_entities"),
         "column_scores": result.get("column_scores"),
         "table_scores": result.get("table_scores"),

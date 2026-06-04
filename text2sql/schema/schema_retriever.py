@@ -1,13 +1,18 @@
 import argparse
 import json
-import math
-from collections import defaultdict
 from typing import Any
 
-from text2sql.schema.build_schema_vector_index import EmbeddingModel, index_path_for_mode, load_config
+from text2sql.db.postgres_utils import create_readonly_engine
+from text2sql.schema.build_schema_pgvector_index import EmbeddingModel, load_config
 from text2sql.schema.paths import V2_ENTITIES_DIR
+from text2sql.schema.pgvector_store import (
+    DEFAULT_PGVECTOR_TABLE,
+    MISSING_INDEX_MESSAGE,
+    search_schema_entities_pgvector,
+)
 from text2sql.schema.query_decomposer import decompose_question
 from text2sql.schema.query_keyword_extractor import strip_vietnamese_accents, tokenize
+
 
 def load_entities(mode: str) -> list[dict[str, Any]]:
     path = V2_ENTITIES_DIR / f"schema_entities_{mode}.json"
@@ -16,22 +21,8 @@ def load_entities(mode: str) -> list[dict[str, Any]]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def load_vector_records(mode: str, config: dict[str, Any]) -> list[dict[str, Any]]:
-    path = index_path_for_mode(config, mode)
-    if not path.exists():
-        raise FileNotFoundError(f"Missing vector index: {path}. Run build_schema_vector_index first.")
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
 def normalize_text(value: str) -> str:
     return strip_vietnamese_accents(value).lower()
-
-
-def cosine(a: list[float], b: list[float]) -> float:
-    dot = sum(x * y for x, y in zip(a, b))
-    norm_a = math.sqrt(sum(x * x for x in a)) or 1.0
-    norm_b = math.sqrt(sum(y * y for y in b)) or 1.0
-    return dot / (norm_a * norm_b)
 
 
 def lexical_score(query: str, entity: dict[str, Any]) -> float:
@@ -73,27 +64,75 @@ def build_retrieval_strings(question: str, decomposition: dict[str, Any]) -> lis
     return out
 
 
-def vector_scores(
+def row_to_entity(row: dict[str, Any], entities_by_id: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    if row["entity_id"] in entities_by_id:
+        return entities_by_id[row["entity_id"]]
+    metadata = row.get("metadata") or {}
+    if isinstance(metadata, dict) and isinstance(metadata.get("entity"), dict):
+        return metadata["entity"]
+    return {
+        "entity_id": row["entity_id"],
+        "entity_type": row["entity_type"],
+        "text": row["entity_text"],
+        "target_type": row["target_type"],
+        "target_table": row["target_table"],
+        "target_column": row["target_column"],
+        "schema": row.get("schema_name"),
+        "table": row.get("table_name"),
+        "column": row.get("column_name"),
+    }
+
+
+def pgvector_scores(
     retrieval_strings: list[str],
-    records: list[dict[str, Any]],
+    mode: str,
     embedding_model: EmbeddingModel,
+    table_name: str,
     top_k: int,
-) -> dict[str, tuple[float, list[str]]]:
-    scores: dict[str, tuple[float, list[str]]] = {}
-    query_vectors = embedding_model.encode_many(retrieval_strings)
-    for query, query_vector in zip(retrieval_strings, query_vectors):
-        ranked = []
-        for record in records:
-            sim = (cosine(query_vector, record["embedding"]) + 1.0) / 2.0
-            ranked.append((sim, record["id"]))
-        for sim, entity_id in sorted(ranked, reverse=True)[:top_k]:
-            current_score, reasons = scores.get(entity_id, (0.0, []))
-            if sim > current_score:
-                scores[entity_id] = (sim, [f"vector top match: {query}"])
-            else:
-                reasons.append(f"vector matched: {query}")
-                scores[entity_id] = (current_score, reasons)
-    return scores
+) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+    scores: dict[str, dict[str, Any]] = {}
+    engine = create_readonly_engine(connect_args={"options": "-c statement_timeout=30000"})
+    try:
+        query_vectors = embedding_model.encode_many(retrieval_strings)
+        for query, query_vector in zip(retrieval_strings, query_vectors):
+            rows = search_schema_entities_pgvector(
+                engine,
+                query_embedding=query_vector,
+                mode=mode,
+                top_k=top_k,
+                table_name=table_name,
+            )
+            for row in rows:
+                entity_id = row["entity_id"]
+                similarity = float(row["similarity"])
+                current = scores.setdefault(
+                    entity_id,
+                    {
+                        "vector_score": 0.0,
+                        "matched_queries": [],
+                        "pgvector_row": row,
+                    },
+                )
+                if similarity > current["vector_score"]:
+                    current["vector_score"] = similarity
+                    current["pgvector_row"] = row
+                if query not in current["matched_queries"]:
+                    current["matched_queries"].append(query)
+    except RuntimeError as exc:
+        if "Schema pgvector index not built" in str(exc):
+            raise
+        raise RuntimeError(MISSING_INDEX_MESSAGE.replace("<mode>", mode)) from exc
+    finally:
+        engine.dispose()
+
+    metadata = {
+        "vector_store": "pgvector",
+        "pgvector_table": table_name,
+        "embedding_model": embedding_model.model_name,
+        "embedding_dim": embedding_model.dim,
+        "retrieval_query_count": len(retrieval_strings),
+    }
+    return scores, metadata
 
 
 def retrieve_schema(
@@ -104,27 +143,44 @@ def retrieve_schema(
     top_k_tables: int = 5,
 ) -> dict[str, Any]:
     config = load_config()
+    table_name = config.get("pgvector_table", DEFAULT_PGVECTOR_TABLE)
     entities = load_entities(mode)
-    records = load_vector_records(mode, config)
-    records_by_id = {record["id"]: record for record in records}
     entities_by_id = {entity["entity_id"]: entity for entity in entities}
     decomposition = decompose_question(question)
     retrieval_strings = build_retrieval_strings(question, decomposition)
     embedding_model = EmbeddingModel(config)
-    vector_by_id = vector_scores(retrieval_strings, records, embedding_model, top_k_entities)
+    vector_by_id, retrieval_metadata = pgvector_scores(
+        retrieval_strings,
+        mode=mode,
+        embedding_model=embedding_model,
+        table_name=table_name,
+        top_k=top_k_entities,
+    )
 
     matched_entities = []
+    candidate_ids = set(vector_by_id)
+    lexical_by_id: dict[str, float] = {}
     for entity in entities:
-        entity_id = entity["entity_id"]
         lexical = max(lexical_score(query, entity) for query in retrieval_strings)
-        vector_score_value, vector_reasons = vector_by_id.get(entity_id, (0.0, []))
+        if lexical > 0:
+            candidate_ids.add(entity["entity_id"])
+            lexical_by_id[entity["entity_id"]] = lexical
+
+    for entity_id in candidate_ids:
+        vector_match = vector_by_id.get(entity_id, {})
+        entity = row_to_entity(vector_match["pgvector_row"], entities_by_id) if vector_match else entities_by_id[entity_id]
+        lexical = lexical_by_id.get(entity_id)
+        if lexical is None:
+            lexical = max(lexical_score(query, entity) for query in retrieval_strings)
+        vector_score_value = float(vector_match.get("vector_score", 0.0))
         boost = float(config.get("entity_type_boost", {}).get(entity["entity_type"], 0.5))
-        if lexical <= 0 and vector_score_value <= 0:
-            continue
         final_score = 0.50 * vector_score_value + 0.35 * lexical + 0.15 * boost
         if final_score <= 0:
             continue
-        reasons = vector_reasons[:]
+        matched_queries = vector_match.get("matched_queries", [])
+        reasons = []
+        if vector_score_value > 0:
+            reasons.append("pgvector semantic match")
         if lexical > 0:
             reasons.append("lexical/alias/name match")
         matched_entities.append(
@@ -134,6 +190,7 @@ def retrieve_schema(
                 "vector_score": round(vector_score_value, 6),
                 "lexical_score": round(lexical, 6),
                 "entity_type_boost": boost,
+                "matched_queries": matched_queries,
                 "reason": reasons,
             }
         )
@@ -188,6 +245,10 @@ def retrieve_schema(
         "mode": mode,
         "query_decomposition": decomposition,
         "retrieval_strings": retrieval_strings,
+        "retrieval_metadata": {
+            **retrieval_metadata,
+            "matched_entities_count": len(matched_entities),
+        },
         "selected_tables": [item["table"] for item in selected_tables],
         "selected_columns": [item["column"] for item in selected_columns],
         "matched_entities": matched_entities,
