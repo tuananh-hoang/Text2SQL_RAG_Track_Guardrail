@@ -59,7 +59,15 @@ def build_schema_context(schema_path: str) -> str:
     max_name_len = max(len(name) for name in quoted_names)
     max_type_len = max(len(column["type"]) for column in visible_columns)
 
-    lines = [f"CREATE TABLE {table_name} ("]
+    # fix: expose table grain so top-k entity questions aggregate rows correctly.
+    lines = [
+        "-- Table grain:",
+        "-- product_sales is order-line level; each Product_Name can appear in many rows.",
+        '-- Product-level revenue means SUM("Revenue") GROUP BY "Product_Name".',
+        "-- Dimension-level metrics by Region, Category, Sub_Category, City, or Product_Name require GROUP BY.",
+        "",
+        f"CREATE TABLE {table_name} (",
+    ]
     for index, column in enumerate(visible_columns):
         quoted_name = quote_identifier(column["name"])
         comma = "," if index < len(visible_columns) - 1 else ""

@@ -3,7 +3,10 @@ import re
 from pathlib import Path
 from typing import Any
 
-from llm_client import get_llm_client, get_llm_model
+try:
+    from text2sql.llm_client import create_chat_completion_with_rotation, get_llm_model
+except ModuleNotFoundError:
+    from llm_client import create_chat_completion_with_rotation, get_llm_model
 
 
 BASE_DIR = Path(__file__).resolve().parents[1]
@@ -59,8 +62,7 @@ def load_prompt(schema_context: str) -> str:
 
 def generate_sql(question: str, schema_context: str) -> dict[str, Any]:
     prompt = load_prompt(schema_context)
-    client = get_llm_client()
-    response = client.chat.completions.create(
+    response = create_chat_completion_with_rotation(
         model=get_llm_model(),
         temperature=0,
         response_format={"type": "json_object"},

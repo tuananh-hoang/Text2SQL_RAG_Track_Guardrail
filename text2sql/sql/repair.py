@@ -1,11 +1,11 @@
 from pathlib import Path
 from typing import Any
 
-from llm_client import get_llm_client, get_llm_model
+from llm_client import create_chat_completion_with_rotation, get_llm_model
 from versions.v1_baseline import parse_llm_json, validate_llm_payload
 
 
-BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = Path(__file__).resolve().parents[1]
 MAX_REPAIR_ATTEMPTS = 2
 
 REPAIR_PROMPT_TEMPLATE = """
@@ -41,7 +41,6 @@ def repair_sql(
     error_msg: str,
     schema_context: str,
 ) -> dict[str, Any]:
-    client = get_llm_client()
     prompt = REPAIR_PROMPT_TEMPLATE.format(
         schema_context=schema_context,
         question=question,
@@ -52,7 +51,7 @@ def repair_sql(
     last_error = None
     for attempt in range(1, MAX_REPAIR_ATTEMPTS + 1):
         try:
-            response = client.chat.completions.create(
+            response = create_chat_completion_with_rotation(
                 model=get_llm_model(),
                 temperature=0,
                 response_format={"type": "json_object"},

@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: text2sql-v1-demo
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python text2sql/web_app.py --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: LLM_PROVIDER
+        value: groq
+      - key: LLM_MODEL
+        value: llama-3.3-70b-versatile
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_API_KEY_2
+        sync: false
+      - key: DB_READONLY_URL
+        sync: false
+      - key: DB_ADMIN_URL
+        sync: false

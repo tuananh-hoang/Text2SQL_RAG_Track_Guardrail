@@ -5,7 +5,7 @@
 #   Giam thieu bang Lop 2 va Lop 3.
 # Lop 2 - Allowlist validation: implemented o day.
 # Lop 3 - Least privilege readonly user:
-#   implemented o sql_executor.py + docker-compose.yml
+#   implemented in sql/executor.py + docker-compose.yml
 
 # PICARD limitation:
 # V1 dung post-hoc validation (validate sau khi LLM
@@ -36,6 +36,33 @@ DANGEROUS_EXPRESSION_NAMES = (
     "Command",
 )
 
+PROHIBITED_SYSTEM_EXPRESSION_NAMES = (
+    "CurrentCatalog",
+    "CurrentDatabase",
+    "CurrentSchema",
+    "CurrentUser",
+    "CurrentVersion",
+)
+
+PROHIBITED_SYSTEM_FUNCTION_NAMES = {
+    "current_database",
+    "current_schema",
+    "current_setting",
+    "current_user",
+    "inet_client_addr",
+    "inet_client_port",
+    "inet_server_addr",
+    "inet_server_port",
+    "pg_backend_pid",
+    "pg_conf_load_time",
+    "pg_database_size",
+    "pg_postmaster_start_time",
+    "pg_sleep",
+    "session_user",
+    "user",
+    "version",
+}
+
 
 def iter_ast_nodes(ast: exp.Expression) -> Iterable[exp.Expression]:
     for item in ast.walk():
@@ -44,8 +71,16 @@ def iter_ast_nodes(ast: exp.Expression) -> Iterable[exp.Expression]:
 
 def load_allowlist(schema_path: str) -> tuple[set[str], set[str]]:
     schema = json.loads(Path(schema_path).read_text(encoding="utf-8"))
-    allowed_tables = {schema["table_name"]}
-    allowed_columns = {column["name"] for column in schema["columns"]}
+    if "tables" in schema:
+        allowed_tables = {table["table_name"] for table in schema["tables"]}
+        allowed_columns = {
+            column["name"]
+            for table in schema["tables"]
+            for column in table.get("columns", [])
+        }
+    else:
+        allowed_tables = {schema["table_name"]}
+        allowed_columns = {column["name"] for column in schema["columns"]}
     return allowed_tables, allowed_columns
 
 
@@ -66,6 +101,35 @@ def expression_classes(names: Iterable[str]) -> tuple[type[exp.Expression], ...]
         if cls is not None:
             classes.append(cls)
     return tuple(classes)
+
+
+def cte_aliases(ast: exp.Expression) -> set[str]:
+    return {
+        cte.alias_or_name
+        for cte in ast.find_all(exp.CTE)
+        if cte.alias_or_name
+    }
+
+
+def table_names_from_ast(ast: exp.Expression) -> list[str]:
+    aliases = cte_aliases(ast)
+    return unique_preserve_order(
+        table.name
+        for table in ast.find_all(exp.Table)
+        if table.name and table.name not in aliases
+    )
+
+
+def has_prohibited_system_call(ast: exp.Expression) -> bool:
+    system_classes = expression_classes(PROHIBITED_SYSTEM_EXPRESSION_NAMES)
+    for node in iter_ast_nodes(ast):
+        if system_classes and isinstance(node, system_classes):
+            return True
+        if isinstance(node, exp.Anonymous):
+            function_name = str(node.name or node.this or "").lower()
+            if function_name in PROHIBITED_SYSTEM_FUNCTION_NAMES:
+                return True
+    return False
 
 
 def has_aggregate(ast: exp.Expression) -> bool:
@@ -148,10 +212,18 @@ def validate_sql(sql: str, schema_path: str) -> dict[str, Any]:
                     "error": "Dangerous statement detected",
                 }
 
+    if has_prohibited_system_call(ast):
+        return {
+            "valid": False,
+            "sql": sql,
+            "tables_from_ast": [],
+            "columns_from_ast": [],
+            "auto_limited": False,
+            "error": "Database metadata/system function not allowed",
+        }
+
     allowed_tables, allowed_columns = load_allowlist(schema_path)
-    tables_from_ast = unique_preserve_order(
-        table.name for table in ast.find_all(exp.Table) if table.name
-    )
+    tables_from_ast = table_names_from_ast(ast)
     alias_names = {
         alias.alias
         for alias in ast.find_all(exp.Alias)
@@ -164,6 +236,17 @@ def validate_sql(sql: str, schema_path: str) -> dict[str, Any]:
         if column.name and column.name != "*"
     )
     columns_from_ast = [column for column in raw_columns if column in allowed_columns]
+
+    # fix: metadata-only SELECTs have no table nodes, so require business data access.
+    if not tables_from_ast:
+        return {
+            "valid": False,
+            "sql": sql,
+            "tables_from_ast": tables_from_ast,
+            "columns_from_ast": columns_from_ast,
+            "auto_limited": False,
+            "error": "Query must reference an allowed data table",
+        }
 
     for table in tables_from_ast:
         if table not in allowed_tables:

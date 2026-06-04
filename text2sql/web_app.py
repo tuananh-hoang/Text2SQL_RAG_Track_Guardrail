@@ -1,5 +1,7 @@
 import argparse
 import json
+import time
+import uuid
 from datetime import date, datetime
 from decimal import Decimal
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -10,15 +12,16 @@ from urllib.parse import urlparse
 import pandas as pd
 
 from llm_client import get_llm_model, get_llm_provider
-from run_v1 import SCHEMA_PATH, run_question
+from run_v1 import SCHEMA_PATH, add_sql_structure_trace, add_trace_step, run_question
 from schema.schema_context_builder import build_schema_context
-from sql_executor import execute_sql
-from sql_validator import validate_sql
+from sql.executor import execute_sql
+from sql.validator import validate_sql
 
 
 BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 7860
+DEMO_LOG_PATH = BASE_DIR / "demo_logs" / "query_traces.jsonl"
 
 
 HTML_PAGE = r"""<!doctype html>
@@ -247,6 +250,47 @@ HTML_PAGE = r"""<!doctype html>
       min-height: 180px;
     }
 
+    .schema-panel { grid-column: 1 / -1; }
+
+    .reference-grid {
+      display: grid;
+      grid-template-columns: minmax(320px, 0.95fr) minmax(320px, 1.05fr);
+      gap: 16px;
+    }
+
+    .reference-block {
+      display: grid;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .schema-summary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .schema-summary strong {
+      color: var(--ink);
+      font-size: 14px;
+    }
+
+    .role {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 12px;
+      font-weight: 650;
+      color: var(--ink);
+      background: #f8fafc;
+      white-space: nowrap;
+    }
+
     .empty {
       min-height: 180px;
       display: grid;
@@ -271,6 +315,7 @@ HTML_PAGE = r"""<!doctype html>
     @media (max-width: 880px) {
       main { grid-template-columns: 1fr; }
       .table-wrap { max-height: 420px; }
+      .reference-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -324,8 +369,26 @@ HTML_PAGE = r"""<!doctype html>
         <pre id="sql-output">No query executed yet.</pre>
         <label>Explanation</label>
         <div id="explanation" class="empty">No explanation yet.</div>
+        <label>Processing Flow</label>
+        <div id="trace" class="empty">No flow trace yet.</div>
         <label>Result</label>
         <div id="result" class="empty">No rows yet.</div>
+      </div>
+    </section>
+
+    <section class="panel schema-panel">
+      <div class="panel-head">
+        <h2>Schema & Table Preview</h2>
+      </div>
+      <div class="panel-body reference-grid">
+        <div class="reference-block">
+          <label>Schema Diagram</label>
+          <div id="schema-diagram" class="empty">Loading schema...</div>
+        </div>
+        <div class="reference-block">
+          <label>Table Preview</label>
+          <div id="table-preview" class="empty">Loading preview...</div>
+        </div>
       </div>
     </section>
   </main>
@@ -346,6 +409,7 @@ HTML_PAGE = r"""<!doctype html>
       sqlOutput: document.getElementById("sql-output"),
       explanation: document.getElementById("explanation"),
       result: document.getElementById("result"),
+      trace: document.getElementById("trace"),
       question: document.getElementById("question"),
       manualSql: document.getElementById("manual-sql"),
       runQuestion: document.getElementById("run-question"),
@@ -354,7 +418,9 @@ HTML_PAGE = r"""<!doctype html>
       tabSql: document.getElementById("tab-sql"),
       questionMode: document.getElementById("question-mode"),
       sqlMode: document.getElementById("sql-mode"),
-      demoQuestions: document.getElementById("demo-questions")
+      demoQuestions: document.getElementById("demo-questions"),
+      schemaDiagram: document.getElementById("schema-diagram"),
+      tablePreview: document.getElementById("table-preview")
     };
 
     function escapeHtml(value) {
@@ -410,12 +476,106 @@ HTML_PAGE = r"""<!doctype html>
       els.result.innerHTML = `<table><thead><tr>${header}</tr></thead><tbody>${rows}</tbody></table>`;
     }
 
+    function renderGenericTable(target, data, emptyText) {
+      if (!data || !data.columns || data.columns.length === 0) {
+        target.className = "empty";
+        target.textContent = emptyText;
+        return;
+      }
+
+      const header = data.columns.map((col) => `<th>${escapeHtml(col)}</th>`).join("");
+      const rows = (data.rows || []).map((row) => {
+        return `<tr>${data.columns.map((col) => `<td>${escapeHtml(row[col])}</td>`).join("")}</tr>`;
+      }).join("");
+      target.className = "table-wrap";
+      target.innerHTML = `<table><thead><tr>${header}</tr></thead><tbody>${rows}</tbody></table>`;
+    }
+
+    function renderTrace(payload) {
+      const steps = payload.trace_steps || [];
+      if (!steps.length) {
+        els.trace.className = "empty";
+        els.trace.textContent = "No flow trace.";
+        return;
+      }
+      els.trace.className = "";
+      function renderStepData(step) {
+        const data = step.data || {};
+        const parts = [];
+        if (data.generated_sql) {
+          parts.push(`<div><strong>SQL sinh ra</strong><pre>${escapeHtml(data.generated_sql)}</pre></div>`);
+        }
+        if (data.repaired_sql) {
+          parts.push(`<div><strong>SQL sau repair</strong><pre>${escapeHtml(data.repaired_sql)}</pre></div>`);
+        }
+        if (data.sql_structure_summary && data.sql_structure_summary.length) {
+          const items = data.sql_structure_summary
+            .map((line) => `<li>${escapeHtml(line)}</li>`)
+            .join("");
+          parts.push(`<div><strong>SQL Structure Summary</strong><ol>${items}</ol></div>`);
+        }
+        if (data.sql_features && Object.keys(data.sql_features).length) {
+          parts.push(
+            `<details><summary>SQL features (AST JSON)</summary><pre>${escapeHtml(JSON.stringify(data.sql_features, null, 2))}</pre></details>`
+          );
+        }
+        if (data.sql_structure_error) {
+          parts.push(`<div class="error">Lỗi phân tích AST: ${escapeHtml(data.sql_structure_error)}</div>`);
+        }
+        if (data.validator_error) {
+          parts.push(`<div class="error">Lý do block: ${escapeHtml(data.validator_error)}</div>`);
+        }
+        if (data.execution_error) {
+          parts.push(`<div class="error">Lỗi execute: ${escapeHtml(data.execution_error)}</div>`);
+        }
+        if (data.row_count !== undefined || data.execution_time_ms !== undefined) {
+          const rowText = data.row_count !== undefined ? `Số dòng: ${escapeHtml(data.row_count)}` : "";
+          const timeText = data.execution_time_ms !== undefined ? `Thời gian: ${escapeHtml(data.execution_time_ms)} ms` : "";
+          parts.push(`<div>${[rowText, timeText].filter(Boolean).join(" · ")}</div>`);
+        }
+        return parts.join("");
+      }
+      els.trace.innerHTML = `<ol>${steps.map((step) => {
+        const prefix = `b${escapeHtml(step.step)}: ${escapeHtml(step.stage)} (${escapeHtml(step.status)})`;
+        return `<li><strong>${prefix}</strong><br><span>${escapeHtml(step.detail)}</span>${renderStepData(step)}</li>`;
+      }).join("")}</ol>`;
+    }
+
+    function renderSchemaOverview(payload) {
+      const columns = ["Column", "Data Type", "Sample / Range"];
+      const rows = payload.columns.map((column) => ({
+        "Column": column.name,
+        "Data Type": column.type,
+        "Sample / Range": column.evidence || column.aliases || ""
+      }));
+      const table = {
+        columns,
+        rows: rows.map((row) => ({
+          "Column": row["Column"],
+          "Data Type": row["Data Type"],
+          "Sample / Range": row["Sample / Range"]
+        }))
+      };
+      renderGenericTable(els.schemaDiagram, table, "No schema found.");
+      els.schemaDiagram.insertAdjacentHTML(
+        "afterbegin",
+        `<div class="schema-summary">
+          <strong>${escapeHtml(payload.table_name)}</strong>
+          <span class="badge">rows: ${escapeHtml(payload.row_count)}</span>
+          <span class="badge">columns: ${escapeHtml(payload.column_count)}</span>
+          <span class="badge">grain: ${escapeHtml(payload.table_grain)}</span>
+        </div>`
+      );
+      renderGenericTable(els.tablePreview, payload.preview, "No preview rows.");
+    }
+
     function renderPayload(payload) {
       els.error.classList.toggle("hidden", !payload.error);
       els.error.textContent = payload.error || "";
       els.sqlOutput.textContent = payload.sql || "NO_SQL";
       els.explanation.className = payload.explanation ? "" : "empty";
       els.explanation.textContent = payload.explanation || "No explanation.";
+      renderTrace(payload);
       renderBadges(payload);
       renderTable(payload.data);
     }
@@ -451,6 +611,22 @@ HTML_PAGE = r"""<!doctype html>
       ].join("");
     }
 
+    async function loadSchemaOverview() {
+      try {
+        const response = await fetch("/api/schema-overview");
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.error || `HTTP ${response.status}`);
+        }
+        renderSchemaOverview(payload);
+      } catch (error) {
+        els.schemaDiagram.className = "error";
+        els.schemaDiagram.textContent = String(error);
+        els.tablePreview.className = "empty";
+        els.tablePreview.textContent = "Preview unavailable.";
+      }
+    }
+
     els.tabQuestion.addEventListener("click", () => setMode("question"));
     els.tabSql.addEventListener("click", () => setMode("sql"));
     els.runQuestion.addEventListener("click", () => {
@@ -480,10 +656,103 @@ HTML_PAGE = r"""<!doctype html>
     });
 
     loadHealth();
+    loadSchemaOverview();
   </script>
 </body>
 </html>
 """
+
+
+def quote_identifier(identifier: str) -> str:
+    return '"' + identifier.replace('"', '""') + '"'
+
+
+def load_schema_summary() -> dict[str, Any]:
+    return json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+
+
+def infer_column_role(column: dict[str, Any]) -> str:
+    data_type = str(column.get("type", "")).lower()
+    name = str(column.get("name", "")).lower()
+    if column.get("is_id") or name.endswith("_id") or name == "id":
+        return "id"
+    if "date" in data_type or "time" in data_type or "date" in name or "time" in name:
+        return "time"
+    if data_type in {"integer", "bigint", "smallint", "numeric", "real", "double precision", "float"}:
+        return "measure"
+    return "dimension"
+
+
+def column_use_label(role: str) -> str:
+    labels = {
+        "id": "record id",
+        "time": "date/time filter",
+        "dimension": "group/filter/display",
+        "measure": "numeric metric",
+    }
+    return labels.get(role, role)
+
+
+def evidence_for_column(column: dict[str, Any]) -> str:
+    evidence_parts = []
+    if column.get("all_values"):
+        values = ", ".join(str(value) for value in column["all_values"][:8])
+        evidence_parts.append("values: " + values)
+    elif column.get("sample_values"):
+        values = ", ".join(str(value) for value in column["sample_values"][:5])
+        evidence_parts.append("sample: " + values)
+    elif column.get("min") is not None and column.get("max") is not None:
+        range_text = f"range: {column['min']} to {column['max']}"
+        if column.get("avg") is not None:
+            range_text += f", avg: {column['avg']}"
+        evidence_parts.append(range_text)
+
+    return "; ".join(evidence_parts)
+
+
+def preview_query(schema: dict[str, Any], limit: int = 20) -> str:
+    table_name = schema["table_name"]
+    columns = [column["name"] for column in schema["columns"]]
+    selected_columns = ", ".join(quote_identifier(column) for column in columns)
+    order_column = next(
+        (column["name"] for column in schema["columns"] if column.get("is_id")),
+        columns[0],
+    )
+    return (
+        f"SELECT {selected_columns} "
+        f"FROM {table_name} "
+        f"ORDER BY {quote_identifier(order_column)} "
+        f"LIMIT {limit}"
+    )
+
+
+def schema_overview_payload() -> dict[str, Any]:
+    schema = load_schema_summary()
+    columns = []
+    for column in schema["columns"]:
+        role = infer_column_role(column)
+        columns.append(
+            {
+                "name": column["name"],
+                "type": column["type"],
+                "role": role,
+                "use": column_use_label(role),
+                "nullable": column.get("nullable"),
+                "aliases": "",
+                "evidence": evidence_for_column(column),
+            }
+        )
+
+    preview = execute_sql(preview_query(schema, limit=20))
+    return {
+        "table_name": schema["table_name"],
+        "row_count": schema["row_count"],
+        "column_count": schema["column_count"],
+        "table_grain": "order-line level",
+        "columns": columns,
+        "preview": dataframe_to_payload(preview["data"]) if preview["success"] else None,
+        "preview_error": preview["error"],
+    }
 
 
 def json_safe(value: Any) -> Any:
@@ -519,8 +788,66 @@ def result_to_payload(result: dict[str, Any]) -> dict[str, Any]:
     return payload
 
 
+def trace_final_status(result: dict[str, Any]) -> str:
+    if result.get("valid") is False:
+        return "blocked"
+    if result.get("error"):
+        return "error"
+    return "success"
+
+
+def write_demo_log(
+    mode: str,
+    result: dict[str, Any],
+    question: str | None = None,
+    input_sql: str | None = None,
+) -> None:
+    try:
+        DEMO_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        record = {
+            "trace_id": str(uuid.uuid4()),
+            "timestamp": datetime.now().isoformat(timespec="seconds"),
+            "mode": mode,
+            "question": question,
+            "input_sql": input_sql,
+            "generated_sql": result.get("sql") if mode == "natural_language" else None,
+            "final_status": trace_final_status(result),
+            "steps": result.get("trace_steps", []),
+        }
+        with DEMO_LOG_PATH.open("a", encoding="utf-8") as file:
+            file.write(json.dumps(record, ensure_ascii=False) + "\n")
+    except Exception:
+        return
+
+
 def run_manual_sql(sql: str) -> dict[str, Any]:
+    trace_steps: list[dict[str, Any]] = []
+    add_trace_step(
+        trace_steps,
+        "Nhận manual SQL",
+        "done",
+        f'SQL input: "{sql}"',
+        {"input_sql": sql},
+    )
+    add_sql_structure_trace(trace_steps, sql)
     validation = validate_sql(sql, str(SCHEMA_PATH))
+    validation_detail = (
+        "SQL hợp lệ và được phép execute."
+        if validation["valid"]
+        else f"Lý do: {validation['error']}\nSQL không được gửi xuống PostgreSQL."
+    )
+    add_trace_step(
+        trace_steps,
+        "Kiểm tra SQL an toàn",
+        "pass" if validation["valid"] else "blocked",
+        validation_detail,
+        {
+            "tables_from_ast": validation["tables_from_ast"],
+            "columns_from_ast": validation["columns_from_ast"],
+            "auto_limited": validation["auto_limited"],
+            "validator_error": validation["error"],
+        },
+    )
     payload: dict[str, Any] = {
         "question": None,
         "sql": validation["sql"],
@@ -530,17 +857,51 @@ def run_manual_sql(sql: str) -> dict[str, Any]:
         "data": None,
         "explanation": "Manual SQL validation",
         "error": validation["error"],
+        "trace_steps": trace_steps,
     }
 
     if not validation["valid"]:
         return payload
 
+    start = time.perf_counter()
     execution = execute_sql(validation["sql"])
+    execution_time_ms = round((time.perf_counter() - start) * 1000, 2)
+    add_trace_step(
+        trace_steps,
+        "Thực thi SQL",
+        "pass" if execution["success"] else "error",
+        (
+            f"Chạy bằng readonly user. Trả về {execution['row_count']} dòng "
+            f"trong {execution_time_ms} ms."
+        )
+        if execution["success"]
+        else f"Lỗi khi execute: {execution['error']}",
+        {
+            "row_count": execution["row_count"],
+            "execution_time_ms": execution_time_ms,
+            "execution_error": None if execution["success"] else execution["error"],
+        },
+    )
     payload["row_count"] = execution["row_count"]
     payload["data"] = execution["data"]
     payload["error"] = execution["error"]
     if execution["success"]:
         payload["explanation"] = "SQL passed validator and executed with readonly user."
+        add_trace_step(
+            trace_steps,
+            "Trả kết quả",
+            "success",
+            "Đã trả SQL, bảng kết quả và explanation về UI.",
+            {"row_count": execution["row_count"]},
+        )
+    else:
+        add_trace_step(
+            trace_steps,
+            "Trả kết quả",
+            "error",
+            "Không thể trả kết quả do lỗi ở bước execute.",
+            {"row_count": 0, "execution_error": execution["error"]},
+        )
     return payload
 
 
@@ -584,6 +945,16 @@ class Text2SQLHandler(BaseHTTPRequestHandler):
             )
             return
 
+        if path == "/api/schema-overview":
+            if not SCHEMA_PATH.exists():
+                self.send_json(
+                    {"error": "schema/schema_summary.json is missing. Run python schema/generate_schema_summary.py."},
+                    status=400,
+                )
+                return
+            self.send_json(schema_overview_payload())
+            return
+
         self.send_json({"error": "Not found"}, status=404)
 
     def do_POST(self) -> None:
@@ -604,6 +975,7 @@ class Text2SQLHandler(BaseHTTPRequestHandler):
                     return
                 schema_context = build_schema_context(str(SCHEMA_PATH))
                 result = run_question(question, schema_context)
+                write_demo_log("natural_language", result, question=question)
                 self.send_json(result_to_payload(result))
                 return
 
@@ -613,6 +985,7 @@ class Text2SQLHandler(BaseHTTPRequestHandler):
                     self.send_json({"error": "SQL is empty"}, status=400)
                     return
                 result = run_manual_sql(sql)
+                write_demo_log("manual_sql", result, input_sql=sql)
                 self.send_json(result_to_payload(result))
                 return
 

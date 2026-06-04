@@ -31,3 +31,4 @@ Thumbs.db
 
 # Local logs
 *.log
+text2sql/demo_logs/

@@ -1,0 +1,117 @@
+{
+  "version": "v1.1_stress",
+  "goal": "SQL-first, coverage-driven, human-reviewable stress test for product_sales Text-to-SQL.",
+  "source_schema": "text2sql/schema/schema_summary.json",
+  "total_count": 100,
+  "difficulty_taxonomy": {
+    "easy": "SELECT + FROM simple, optionally WHERE with one condition; no GROUP BY, HAVING, subquery, or JOIN.",
+    "medium": "GROUP BY or ORDER BY, simple aggregate, or WHERE with two conditions.",
+    "hard": "WHERE with 3+ conditions, GROUP BY + HAVING + ORDER BY, complex date range, or entity-level versus row-level distinction.",
+    "extra": "ambiguous, out_of_scope, unsafe, or adversarial prompt."
+  },
+  "categories": {
+    "projection_select": {
+      "count": 8,
+      "failure_target": "column selection, SELECT * tendency, projection alias drift",
+      "required_sql_patterns": [
+        "SELECT explicit columns",
+        "FROM product_sales",
+        "LIMIT 100"
+      ],
+      "expected_behavior": "execute"
+    },
+    "count": {
+      "count": 8,
+      "failure_target": "COUNT(*) versus COUNT(column), COUNT(DISTINCT), alias consistency",
+      "required_sql_patterns": [
+        "COUNT",
+        "explicit alias"
+      ],
+      "expected_behavior": "execute"
+    },
+    "simple_filter": {
+      "count": 8,
+      "failure_target": "single WHERE condition, text value matching, no SELECT *",
+      "required_sql_patterns": [
+        "WHERE one condition",
+        "LIMIT 100"
+      ],
+      "expected_behavior": "execute"
+    },
+    "multi_condition_filter": {
+      "count": 10,
+      "failure_target": "AND condition composition, numeric comparisons, text filters, date filters",
+      "required_sql_patterns": [
+        "WHERE two or more conditions",
+        "LIMIT 100 for row queries"
+      ],
+      "expected_behavior": "execute"
+    },
+    "aggregate": {
+      "count": 10,
+      "failure_target": "metric selection, aggregate function choice, aggregate aliases",
+      "required_sql_patterns": [
+        "SUM/AVG/MIN/MAX",
+        "explicit alias"
+      ],
+      "expected_behavior": "execute"
+    },
+    "group_by": {
+      "count": 12,
+      "failure_target": "dimension selection, metric aggregation, HAVING, ORDER BY after GROUP BY",
+      "required_sql_patterns": [
+        "GROUP BY dimension",
+        "aggregate metric",
+        "explicit alias"
+      ],
+      "expected_behavior": "execute"
+    },
+    "top_k_raw": {
+      "count": 6,
+      "failure_target": "row-level ranking versus entity-level aggregation",
+      "required_sql_patterns": [
+        "ORDER BY raw metric",
+        "LIMIT K",
+        "no GROUP BY"
+      ],
+      "expected_behavior": "execute"
+    },
+    "top_k_aggregate": {
+      "count": 16,
+      "failure_target": "entity-level top-k, GROUP BY omission, wrong aggregate metric",
+      "required_sql_patterns": [
+        "GROUP BY entity",
+        "SUM/AVG/COUNT aggregate",
+        "ORDER BY aggregate DESC",
+        "LIMIT K"
+      ],
+      "expected_behavior": "execute"
+    },
+    "date_filter": {
+      "count": 12,
+      "failure_target": "PostgreSQL date range syntax, month/year boundaries, date plus metric logic",
+      "required_sql_patterns": [
+        "\"Order_Date\" >= 'YYYY-MM-DD'",
+        "\"Order_Date\" < 'YYYY-MM-DD'",
+        "no string compare on date"
+      ],
+      "expected_behavior": "execute"
+    },
+    "ambiguous_out_of_scope": {
+      "count": 5,
+      "failure_target": "NO_SQL decision, out-of-scope detection, underspecified question handling",
+      "required_sql_patterns": [
+        "NO_SQL"
+      ],
+      "expected_behavior": "block"
+    },
+    "unsafe_adversarial": {
+      "count": 5,
+      "failure_target": "unsafe intent blocking, prompt injection resistance, non-SELECT protection",
+      "required_sql_patterns": [
+        "BLOCK"
+      ],
+      "expected_behavior": "block"
+    }
+  }
+}

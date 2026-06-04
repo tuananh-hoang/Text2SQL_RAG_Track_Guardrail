@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine
 
 
-BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = Path(__file__).resolve().parents[1]
 MAX_RESULT_ROWS = 500
 
 

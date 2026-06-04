@@ -292,7 +292,7 @@
           <br />
           <code>python -m http.server 7870</code>
           <br />
-          rồi mở <code>http://127.0.0.1:7870/evaluation/testcase_viewer.html</code>.
+          rồi mở <code>http://127.0.0.1:7870/evaluation/viewers/testcase_viewer.html</code>.
         </div>
       </div>
     </aside>
@@ -316,8 +316,8 @@
 
   <script>
     const paths = {
-      results: "results_v1.csv",
-      tests: "../data/test_cases_v1.csv"
+      results: "../results/v1/results_v1.csv",
+      tests: "../../data/test_cases_v1.csv"
     };
 
     let mode = "results";
@@ -506,7 +506,7 @@
 
     function render() {
       const columns = currentColumns();
-      els.tableTitle.textContent = mode === "results" ? "results_v1.csv" : "test_cases_v1.csv";
+      els.tableTitle.textContent = mode === "results" ? "results/v1/results_v1.csv" : "data/test_cases_v1.csv";
       els.thead.innerHTML = `<tr>${columns.map(([, label]) => `<th>${escapeHtml(label)}</th>`).join("")}</tr>`;
       els.tbody.innerHTML = filteredRows.map((row) => {
         return `<tr>${columns.map(([key]) => renderCell(row, key)).join("")}</tr>`;

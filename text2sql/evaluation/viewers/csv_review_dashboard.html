@@ -1,0 +1,826 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Text-to-SQL Evaluation Review</title>
+  <style>
+    :root {
+      --bg: #f7f7f7;
+      --panel: #ffffff;
+      --ink: #111111;
+      --muted: #666666;
+      --line: #d7d7d7;
+      --soft: #eeeeee;
+      --bad: #8a1f11;
+      --good: #145c2e;
+      --warn: #6f4e00;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 14px/1.45 Arial, Helvetica, sans-serif;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: 58px;
+      padding: 12px 18px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.2;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: 300px minmax(0, 1fr);
+      gap: 14px;
+      padding: 14px;
+    }
+
+    aside,
+    section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+    }
+
+    .block-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .block-head h2 {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .block-body { padding: 12px; }
+
+    .stack { display: grid; gap: 10px; }
+
+    .file-input {
+      display: block;
+      width: 100%;
+      padding: 9px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      color: var(--ink);
+    }
+
+    .hint {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .file-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .file-btn {
+      width: 100%;
+      padding: 9px 10px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--ink);
+      text-align: left;
+      cursor: pointer;
+      font: inherit;
+    }
+
+    .file-btn.active {
+      outline: 2px solid var(--ink);
+      outline-offset: -2px;
+      background: var(--soft);
+    }
+
+    .file-name {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-weight: 700;
+    }
+
+    .file-meta {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 2px;
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: minmax(280px, 1fr) 170px 170px;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .segmented {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      border: 1px solid var(--line);
+      background: var(--panel);
+    }
+
+    .segment-btn {
+      min-height: 36px;
+      padding: 7px 8px;
+      border: 0;
+      border-right: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--ink);
+      cursor: pointer;
+      font: inherit;
+      white-space: nowrap;
+    }
+
+    .segment-btn:last-child { border-right: 0; }
+
+    .segment-btn.active {
+      background: var(--ink);
+      color: #fff;
+    }
+
+    input,
+    select {
+      width: 100%;
+      min-height: 36px;
+      padding: 8px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--ink);
+      font: inherit;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(120px, 1fr));
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .metric {
+      min-height: 74px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      background: #fafafa;
+    }
+
+    .metric-label {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+
+    .metric-value {
+      display: block;
+      font-size: 20px;
+      font-weight: 700;
+      line-height: 1.1;
+    }
+
+    .metric.good .metric-value { color: var(--good); }
+    .metric.bad .metric-value { color: var(--bad); }
+    .metric.warn .metric-value { color: var(--warn); }
+
+    .table-wrap {
+      max-height: calc(100vh - 360px);
+      overflow: auto;
+      border-top: 1px solid var(--line);
+    }
+
+    .result-list {
+      display: grid;
+      gap: 10px;
+      padding: 10px;
+    }
+
+    .result-card {
+      border: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .result-card-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 9px 10px;
+      border-bottom: 1px solid var(--line);
+      background: #fafafa;
+    }
+
+    .result-card-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      font-weight: 700;
+    }
+
+    .result-card-status {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 6px;
+    }
+
+    .sql-compare {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+    }
+
+    .question-row {
+      padding: 9px 10px;
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .question-text {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.4;
+    }
+
+    .sql-pane {
+      min-width: 0;
+      padding: 10px;
+    }
+
+    .sql-pane + .sql-pane {
+      border-left: 1px solid var(--line);
+    }
+
+    .sql-label {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .result-card-foot {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 8px 10px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    table.data {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    table.data th,
+    table.data td {
+      min-width: 120px;
+      max-width: 360px;
+      padding: 8px;
+      border-bottom: 1px solid var(--line);
+      border-right: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+      word-break: break-word;
+    }
+
+    table.data th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: var(--soft);
+      font-size: 12px;
+    }
+
+    code {
+      display: block;
+      white-space: pre-wrap;
+      font: 12px/1.4 Consolas, "Courier New", monospace;
+      color: #000;
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 2px 6px;
+      border: 1px solid var(--line);
+      background: #fafafa;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .pill.good { color: var(--good); border-color: var(--good); }
+    .pill.bad { color: var(--bad); border-color: var(--bad); }
+    .pill.warn { color: var(--warn); border-color: var(--warn); }
+
+    .empty {
+      padding: 32px;
+      color: var(--muted);
+      text-align: center;
+      border: 1px dashed var(--line);
+    }
+
+    @media (max-width: 980px) {
+      main { grid-template-columns: 1fr; }
+      .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .toolbar { grid-template-columns: 1fr; }
+      .sql-compare { grid-template-columns: 1fr; }
+      .sql-pane + .sql-pane {
+        border-left: 0;
+        border-top: 1px solid var(--line);
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Text-to-SQL Evaluation Review</h1>
+    <span class="pill">CSV dashboard</span>
+  </header>
+
+  <main>
+    <aside>
+      <div class="block-head">
+        <h2>Files</h2>
+      </div>
+      <div class="block-body stack">
+        <input class="file-input" id="csvFiles" type="file" accept=".csv" multiple />
+        <p class="hint">Recommended: results, error_analysis, debug_wrong_cases, validation_report.</p>
+        <div class="file-list" id="fileList"></div>
+      </div>
+    </aside>
+
+    <section>
+      <div class="block-head">
+        <h2 id="activeTitle">No file loaded</h2>
+        <span class="pill" id="activeType">empty</span>
+      </div>
+      <div class="block-body">
+        <div id="emptyState" class="empty">Choose CSV files from evaluation/results/v1, v1_1, mentor, or validation.</div>
+        <div id="dashboard" hidden>
+          <div class="metrics" id="metrics"></div>
+          <div class="toolbar">
+            <div class="segmented" id="correctnessFilter" aria-label="Correctness filter"></div>
+            <select id="filterA"></select>
+            <select id="filterB"></select>
+          </div>
+          <div class="table-wrap">
+            <div class="result-list" id="resultList" hidden></div>
+            <table class="data" id="dataTable"></table>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const state = {
+      files: [],
+      activeIndex: -1,
+      correctness: "all",
+      filterA: "",
+      filterB: "",
+    };
+
+    const csvFiles = document.getElementById("csvFiles");
+    const fileList = document.getElementById("fileList");
+    const activeTitle = document.getElementById("activeTitle");
+    const activeType = document.getElementById("activeType");
+    const emptyState = document.getElementById("emptyState");
+    const dashboard = document.getElementById("dashboard");
+    const metrics = document.getElementById("metrics");
+    const correctnessFilter = document.getElementById("correctnessFilter");
+    const filterA = document.getElementById("filterA");
+    const filterB = document.getElementById("filterB");
+    const resultList = document.getElementById("resultList");
+    const dataTable = document.getElementById("dataTable");
+
+    csvFiles.addEventListener("change", async (event) => {
+      const files = Array.from(event.target.files || []);
+      const parsed = [];
+      for (const file of files) {
+        const text = await file.text();
+        const rows = parseCsv(text);
+        parsed.push({
+          name: file.name,
+          rows,
+          columns: rows.length ? Object.keys(rows[0]) : [],
+          type: detectType(file.name, rows),
+        });
+      }
+      state.files = parsed;
+      state.activeIndex = parsed.length ? 0 : -1;
+      state.correctness = "all";
+      state.filterA = "";
+      state.filterB = "";
+      render();
+    });
+
+    filterA.addEventListener("change", () => {
+      state.filterA = filterA.value;
+      renderActive();
+    });
+
+    filterB.addEventListener("change", () => {
+      state.filterB = filterB.value;
+      renderActive();
+    });
+
+    function parseCsv(text) {
+      const rows = [];
+      let row = [];
+      let cell = "";
+      let inQuotes = false;
+
+      for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        const next = text[i + 1];
+        if (char === '"') {
+          if (inQuotes && next === '"') {
+            cell += '"';
+            i++;
+          } else {
+            inQuotes = !inQuotes;
+          }
+        } else if (char === "," && !inQuotes) {
+          row.push(cell);
+          cell = "";
+        } else if ((char === "\n" || char === "\r") && !inQuotes) {
+          if (char === "\r" && next === "\n") i++;
+          row.push(cell);
+          if (row.some(value => value !== "")) rows.push(row);
+          row = [];
+          cell = "";
+        } else {
+          cell += char;
+        }
+      }
+
+      row.push(cell);
+      if (row.some(value => value !== "")) rows.push(row);
+      if (!rows.length) return [];
+
+      const headers = rows[0].map(header => header.trim());
+      return rows.slice(1).map(values => {
+        const record = {};
+        headers.forEach((header, index) => {
+          record[header] = values[index] ?? "";
+        });
+        return record;
+      });
+    }
+
+    function detectType(name, rows) {
+      const columns = rows.length ? Object.keys(rows[0]) : [];
+      if (columns.includes("failure_nature")) return "debug";
+      if (columns.includes("failure_type")) return "error_analysis";
+      if (columns.includes("match_type") && columns.includes("generated_sql")) return "results";
+      if (columns.includes("gold_sql_runs") && columns.includes("status")) return "validation";
+      if (columns.includes("gold_sql") && columns.includes("expected_behavior")) return "test_cases";
+      return name.replace(/\.csv$/i, "") || "csv";
+    }
+
+    function render() {
+      renderFileList();
+      renderActive();
+    }
+
+    function renderFileList() {
+      fileList.innerHTML = "";
+      state.files.forEach((file, index) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = `file-btn${index === state.activeIndex ? " active" : ""}`;
+        button.innerHTML = `
+          <span class="file-name">${escapeHtml(file.name)}</span>
+          <span class="file-meta">${file.rows.length} rows · ${escapeHtml(file.type)}</span>
+        `;
+        button.addEventListener("click", () => {
+          state.activeIndex = index;
+          state.correctness = "all";
+          state.filterA = "";
+          state.filterB = "";
+          render();
+        });
+        fileList.appendChild(button);
+      });
+    }
+
+    function renderActive() {
+      const file = state.files[state.activeIndex];
+      if (!file) {
+        activeTitle.textContent = "No file loaded";
+        activeType.textContent = "empty";
+        emptyState.hidden = false;
+        dashboard.hidden = true;
+        return;
+      }
+
+      activeTitle.textContent = file.name;
+      activeType.textContent = file.type;
+      emptyState.hidden = true;
+      dashboard.hidden = false;
+
+      renderMetrics(file);
+      renderCorrectnessFilter(file);
+      renderFilters(file);
+      renderTable(file);
+    }
+
+    function renderMetrics(file) {
+      const rows = file.rows;
+      const cards = [{ label: "Rows", value: rows.length, tone: "" }];
+      if (file.type === "results") {
+        const executeRows = rows.filter(row => row.gold_sql !== "BLOCK" && row.gold_sql !== "NO_SQL");
+        const blockRows = rows.filter(row => row.gold_sql === "BLOCK" || row.gold_sql === "NO_SQL");
+        cards.push(
+          metricCard("SQL valid", countTrue(executeRows, "is_valid"), executeRows.length),
+          metricCard("Execution success", countTrue(executeRows, "execution_success"), executeRows.length),
+          metricCard("Strict accuracy", countTrue(executeRows, "strict_correct"), executeRows.length),
+          metricCard("Relaxed accuracy", countTrue(executeRows, "relaxed_correct"), executeRows.length),
+          metricCard("Block rate", countTrue(blockRows, "is_correct"), blockRows.length)
+        );
+      } else if (file.type === "error_analysis") {
+        const failures = rows.filter(row => row.failure_type !== "correct").length;
+        cards.push({ label: "Failures", value: failures, tone: failures ? "bad" : "good" });
+        cards.push({ label: "Correct", value: rows.length - failures, tone: "good" });
+      } else if (file.type === "debug") {
+        cards.push({ label: "Failure groups", value: Object.keys(groupCounts(rows, "failure_nature")).length, tone: "warn" });
+        cards.push({ label: "Rows needing action", value: rows.filter(row => !row.failure_nature.startsWith("strict_only")).length, tone: "bad" });
+      } else if (file.type === "validation") {
+        cards.push(metricCard("Valid", rows.filter(row => row.status === "valid").length, rows.length));
+        cards.push({ label: "Warnings", value: rows.filter(row => row.warning).length, tone: "warn" });
+      }
+      metrics.innerHTML = cards.map(card => `
+        <div class="metric ${card.tone || ""}">
+          <span class="metric-label">${escapeHtml(card.label)}</span>
+          <span class="metric-value">${escapeHtml(String(card.value))}</span>
+        </div>
+      `).join("");
+    }
+
+    function metricCard(label, count, total) {
+      const pct = total ? `${((count / total) * 100).toFixed(1)}%` : "0.0%";
+      return { label, value: `${count}/${total} (${pct})`, tone: count === total ? "good" : "warn" };
+    }
+
+    function renderFilters(file) {
+      const primary = firstExisting(file.columns, ["category", "failure_type", "failure_nature", "status"]);
+      const secondary = firstExisting(file.columns, ["difficulty", "match_type", "strict_status", "relaxed_status", "warning"]);
+      fillFilter(filterA, primary, file.rows);
+      fillFilter(filterB, secondary, file.rows);
+    }
+
+    function renderCorrectnessFilter(file) {
+      const options = correctnessOptions(file);
+      if (!options.some(option => option.value === state.correctness)) {
+        state.correctness = "all";
+      }
+      correctnessFilter.innerHTML = options.map(option => `
+        <button
+          type="button"
+          class="segment-btn${state.correctness === option.value ? " active" : ""}"
+          data-value="${escapeHtml(option.value)}"
+        >${escapeHtml(option.label)}</button>
+      `).join("");
+      correctnessFilter.querySelectorAll("button").forEach(button => {
+        button.addEventListener("click", () => {
+          state.correctness = button.dataset.value || "all";
+          renderActive();
+        });
+      });
+    }
+
+    function correctnessOptions(file) {
+      if (file.type === "results") {
+        return [
+          { value: "all", label: "All" },
+          { value: "wrong", label: "Wrong" },
+          { value: "strict_fail", label: "Strict fail" },
+          { value: "relaxed_fail", label: "Relaxed fail" },
+          { value: "block_fail", label: "Block fail" },
+          { value: "correct", label: "Correct" },
+        ];
+      }
+      if (file.type === "error_analysis") {
+        return [
+          { value: "all", label: "All" },
+          { value: "wrong", label: "Wrong" },
+          { value: "correct", label: "Correct" },
+        ];
+      }
+      if (file.type === "debug") {
+        return [
+          { value: "all", label: "All" },
+          { value: "wrong", label: "Needs action" },
+          { value: "correct", label: "Strict-only" },
+        ];
+      }
+      return [
+        { value: "all", label: "All" },
+        { value: "wrong", label: "Invalid/warn" },
+        { value: "correct", label: "Valid" },
+      ];
+    }
+
+    function fillFilter(select, column, rows) {
+      const previous = select.value;
+      select.dataset.column = column || "";
+      if (!column) {
+        select.innerHTML = '<option value="">No filter</option>';
+        select.disabled = true;
+        return;
+      }
+      select.disabled = false;
+      const values = Array.from(new Set(rows.map(row => row[column] || "(blank)"))).sort();
+      select.innerHTML = `<option value="">${escapeHtml(column)}: all</option>` +
+        values.map(value => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join("");
+      if (values.includes(previous)) select.value = previous;
+    }
+
+    function renderTable(file) {
+      const rows = filteredRows(file);
+      if (file.type === "results") {
+        dataTable.hidden = true;
+        resultList.hidden = false;
+        renderResultCards(rows);
+        return;
+      }
+
+      resultList.hidden = true;
+      dataTable.hidden = false;
+      const columns = preferredColumns(file);
+      dataTable.innerHTML = `
+        <thead><tr>${columns.map(column => `<th>${escapeHtml(column)}</th>`).join("")}</tr></thead>
+        <tbody>
+          ${rows.map(row => `
+            <tr>${columns.map(column => `<td>${formatCell(column, row[column] || "")}</td>`).join("")}</tr>
+          `).join("")}
+        </tbody>
+      `;
+    }
+
+    function renderResultCards(rows) {
+      if (!rows.length) {
+        resultList.innerHTML = '<div class="empty">No rows match the current filters.</div>';
+        return;
+      }
+
+      resultList.innerHTML = rows.map(row => `
+        <article class="result-card">
+          <div class="result-card-head">
+            <div class="result-card-title">
+              <span>#${escapeHtml(row.id || "")}</span>
+              ${statusPill("execution", row.execution_success)}
+            </div>
+            <div class="result-card-status">
+              ${statusPill("strict", row.strict_correct)}
+              ${statusPill("relaxed", row.relaxed_correct)}
+            </div>
+          </div>
+          <div class="question-row">
+            <span class="sql-label">Question</span>
+            <p class="question-text">${escapeHtml(row.question || "")}</p>
+          </div>
+          <div class="sql-compare">
+            <div class="sql-pane">
+              <span class="sql-label">Gold SQL</span>
+              <code>${escapeHtml(row.gold_sql || "")}</code>
+            </div>
+            <div class="sql-pane">
+              <span class="sql-label">Generated SQL</span>
+              <code>${escapeHtml(row.generated_sql || "")}</code>
+            </div>
+          </div>
+          ${row.failure_target ? `<div class="result-card-foot">failure target: ${escapeHtml(row.failure_target)}</div>` : ""}
+        </article>
+      `).join("");
+    }
+
+    function statusPill(label, value) {
+      const normalized = String(value).toLowerCase();
+      const tone = normalized === "true" ? "good" : normalized === "false" ? "bad" : "warn";
+      return `<span class="pill ${tone}">${escapeHtml(label)}: ${escapeHtml(value || "n/a")}</span>`;
+    }
+
+    function filteredRows(file) {
+      return file.rows.filter(row => {
+        const columnA = filterA.dataset.column;
+        const columnB = filterB.dataset.column;
+        if (state.filterA && (row[columnA] || "(blank)") !== state.filterA) return false;
+        if (state.filterB && (row[columnB] || "(blank)") !== state.filterB) return false;
+        return matchesCorrectness(row, file.type);
+      });
+    }
+
+    function matchesCorrectness(row, type) {
+      if (state.correctness === "all") return true;
+      if (type === "results") {
+        const isBlock = row.gold_sql === "BLOCK" || row.gold_sql === "NO_SQL";
+        const isCorrect = row.is_correct === "True";
+        const strictCorrect = row.strict_correct === "True";
+        const relaxedCorrect = row.relaxed_correct === "True";
+        if (state.correctness === "correct") return isCorrect;
+        if (state.correctness === "wrong") return !isCorrect;
+        if (state.correctness === "strict_fail") return !isBlock && !strictCorrect;
+        if (state.correctness === "relaxed_fail") return !isBlock && !relaxedCorrect;
+        if (state.correctness === "block_fail") return isBlock && !isCorrect;
+      }
+      if (type === "error_analysis") {
+        const isCorrect = row.failure_type === "correct";
+        return state.correctness === "correct" ? isCorrect : !isCorrect;
+      }
+      if (type === "debug") {
+        const strictOnly = String(row.failure_nature || "").startsWith("strict_only");
+        return state.correctness === "correct" ? strictOnly : !strictOnly;
+      }
+      if (type === "validation") {
+        const ok = row.status === "valid" && !row.warning;
+        return state.correctness === "correct" ? ok : !ok;
+      }
+      return true;
+    }
+
+    function preferredColumns(file) {
+      const byType = {
+        results: ["id", "gold_sql", "generated_sql", "execution_success", "strict_correct", "relaxed_correct", "failure_target"],
+        error_analysis: ["id", "category", "difficulty", "question", "failure_type", "diagnosis", "gold_sql", "generated_sql"],
+        debug: ["id", "category", "strict_status", "relaxed_status", "failure_nature", "root_cause", "evidence", "recommendation"],
+        validation: ["id", "category", "difficulty", "status", "gold_sql_runs", "row_count", "is_empty", "warning", "error"],
+        test_cases: ["id", "category", "difficulty", "question", "gold_sql", "expected_behavior", "failure_target"],
+      };
+      const preferred = byType[file.type] || file.columns;
+      if (file.type === "results") return preferred.filter(column => file.columns.includes(column));
+      const seen = new Set();
+      return [...preferred, ...file.columns].filter(column => {
+        if (!file.columns.includes(column) || seen.has(column)) return false;
+        seen.add(column);
+        return true;
+      });
+    }
+
+    function formatCell(column, value) {
+      if (/sql/i.test(column)) return `<code>${escapeHtml(value)}</code>`;
+      if (/correct|valid|success|runs|empty/i.test(column)) {
+        const normalized = String(value).toLowerCase();
+        const tone = normalized === "true" || normalized === "valid" ? "good" : normalized === "false" || normalized === "invalid" ? "bad" : "";
+        return `<span class="pill ${tone}">${escapeHtml(value)}</span>`;
+      }
+      if (/failure|error|warning/i.test(column) && value) return `<span class="pill warn">${escapeHtml(value)}</span>`;
+      return escapeHtml(value);
+    }
+
+    function groupCounts(rows, column) {
+      const counts = {};
+      rows.forEach(row => {
+        const key = row[column] || "";
+        counts[key] = (counts[key] || 0) + 1;
+      });
+      return counts;
+    }
+
+    function countTrue(rows, column) {
+      return rows.filter(row => String(row[column]).toLowerCase() === "true").length;
+    }
+
+    function firstExisting(columns, candidates) {
+      return candidates.find(column => columns.includes(column)) || "";
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+  </script>
+</body>
+</html>
