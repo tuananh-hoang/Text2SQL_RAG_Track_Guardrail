@@ -1,0 +1,2 @@
+id,category,difficulty,question,gold_sql,generated_sql,is_correct,failure_type,diagnosis
+,smoke,easy,Top 5 sản phẩm có doanh thu cao nhất.,"SELECT ""Product_Name"", SUM(""Revenue"") AS total_revenue FROM product_sales GROUP BY ""Product_Name"" ORDER BY total_revenue DESC LIMIT 5","SELECT ""Product_Name"", SUM(""Revenue"") AS total_revenue FROM product_sales GROUP BY ""Product_Name"" ORDER BY total_revenue DESC LIMIT 5",True,correct,SQL đạt tiêu chí benchmark cho case này.

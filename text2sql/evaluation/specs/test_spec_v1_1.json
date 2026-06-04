@@ -1,7 +1,7 @@
 {
   "version": "v1.1_stress",
   "goal": "SQL-first, coverage-driven, human-reviewable stress test for product_sales Text-to-SQL.",
-  "source_schema": "text2sql/schema/schema_summary.json",
+  "source_schema": "text2sql/schema/artifacts/v1/schema_summary.json",
   "total_count": 100,
   "difficulty_taxonomy": {
     "easy": "SELECT + FROM simple, optionally WHERE with one condition; no GROUP BY, HAVING, subquery, or JOIN.",

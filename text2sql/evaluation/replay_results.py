@@ -14,7 +14,7 @@ from sql.executor import execute_sql
 from sql.validator import validate_sql
 
 
-SCHEMA_PATH = BASE_DIR / "schema" / "schema_summary.json"
+SCHEMA_PATH = BASE_DIR / "schema" / "artifacts" / "v1" / "schema_summary.json"
 DEFAULT_TEST_FILE = BASE_DIR / "data" / "test_cases_v1_1_stress.csv"
 DEFAULT_INPUT_RESULTS = BASE_DIR / "evaluation" / "results" / "v1_1" / "results_v1_1_general_prompt.csv"
 DEFAULT_OUTPUT = BASE_DIR / "evaluation" / "results" / "v1_1" / "results_v1_1_general_prompt_replay.csv"

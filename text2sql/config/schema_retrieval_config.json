@@ -1,0 +1,22 @@
+{
+  "embedding_provider": "local_hash",
+  "embedding_model_name": "intfloat/multilingual-e5-small",
+  "embedding_dim": "auto_detect",
+  "fallback_embedding_model_name": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+  "vector_db": "simple_json",
+  "persist_dir": "text2sql/schema/artifacts/v2/vector_store",
+  "collections": {
+    "product_sales": "schema_entities_product_sales",
+    "mock_relational": "schema_entities_mock_relational"
+  },
+  "entity_type_boost": {
+    "column_alias": 1.0,
+    "column_name": 0.9,
+    "column_description": 0.8,
+    "value_format_description": 0.7,
+    "table_alias": 0.8,
+    "table_name": 0.7,
+    "table_description": 0.6,
+    "relationship_description": 0.5
+  }
+}

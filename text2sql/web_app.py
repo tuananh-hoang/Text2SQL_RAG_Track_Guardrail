@@ -948,7 +948,7 @@ class Text2SQLHandler(BaseHTTPRequestHandler):
         if path == "/api/schema-overview":
             if not SCHEMA_PATH.exists():
                 self.send_json(
-                    {"error": "schema/schema_summary.json is missing. Run python schema/generate_schema_summary.py."},
+                    {"error": "schema/artifacts/v1/schema_summary.json is missing. Run python -m text2sql.schema.generate_schema_summary --mode product_sales."},
                     status=400,
                 )
                 return
@@ -962,7 +962,7 @@ class Text2SQLHandler(BaseHTTPRequestHandler):
         try:
             if not SCHEMA_PATH.exists():
                 self.send_json(
-                    {"error": "schema/schema_summary.json is missing. Run python schema/generate_schema_summary.py."},
+                    {"error": "schema/artifacts/v1/schema_summary.json is missing. Run python -m text2sql.schema.generate_schema_summary --mode product_sales."},
                     status=400,
                 )
                 return

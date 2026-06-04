@@ -15,7 +15,7 @@ from versions.v1_baseline import generate_sql
 
 
 BASE_DIR = Path(__file__).resolve().parent
-SCHEMA_PATH = BASE_DIR / "schema" / "schema_summary.json"
+SCHEMA_PATH = BASE_DIR / "schema" / "artifacts" / "v1" / "schema_summary.json"
 DEMO_QUESTIONS = [
     "Tong doanh thu la bao nhieu?",
     "Doanh thu theo tung khu vuc?",
@@ -335,7 +335,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     if not SCHEMA_PATH.exists():
         print(f"Schema summary not found: {SCHEMA_PATH}")
-        print("Run: python schema/generate_schema_summary.py")
+        print("Run: python -m text2sql.schema.generate_schema_summary --mode product_sales")
         return 1
 
     args = parse_args()
