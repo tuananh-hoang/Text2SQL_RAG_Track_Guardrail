@@ -9,6 +9,8 @@ from text2sql.schema.pgvector_store import (
     DEFAULT_PGVECTOR_TABLE,
     create_embedding_table,
     create_vector_index,
+    delete_schema_entity_embeddings,
+    get_existing_embedding_dim,
     recreate_embedding_table,
     upsert_schema_entity_embeddings,
 )
@@ -121,7 +123,17 @@ def build_pgvector_index(mode: str, rebuild: bool = False) -> dict[str, Any]:
     engine = create_admin_engine()
     try:
         if rebuild:
-            recreate_embedding_table(engine, embedding_dim=embedding_model.dim, table_name=table_name)
+            existing_dim = get_existing_embedding_dim(engine, table_name=table_name)
+            if existing_dim is not None and existing_dim != embedding_model.dim:
+                recreate_embedding_table(engine, embedding_dim=embedding_model.dim, table_name=table_name)
+            else:
+                create_embedding_table(engine, embedding_dim=embedding_model.dim, table_name=table_name)
+                delete_schema_entity_embeddings(
+                    engine,
+                    mode=mode,
+                    embedding_model=embedding_model.model_name,
+                    table_name=table_name,
+                )
         else:
             create_embedding_table(engine, embedding_dim=embedding_model.dim, table_name=table_name)
         upsert_schema_entity_embeddings(engine, rows, table_name=table_name)

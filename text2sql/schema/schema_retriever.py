@@ -235,11 +235,21 @@ def retrieve_schema(
         elif item["target_type"] == "relationship":
             matched_relationships.append(item)
 
-    selected_columns = sorted(column_agg.values(), key=lambda item: item["score"], reverse=True)[:top_k_columns]
+    ranked_columns = sorted(column_agg.values(), key=lambda item: item["score"], reverse=True)
+    if ranked_columns:
+        top_column_score = ranked_columns[0]["score"]
+        score_cutoff = max(0.35, top_column_score * 0.70)
+        selected_columns = [item for item in ranked_columns if item["score"] >= score_cutoff][:top_k_columns]
+        if not selected_columns:
+            selected_columns = ranked_columns[:1]
+    else:
+        selected_columns = []
     selected_table_names = {item["table"] for item in selected_columns}
-    selected_tables = sorted(table_agg.values(), key=lambda item: item["score"], reverse=True)
-    selected_tables = [item for item in selected_tables if item["table"] in selected_table_names or len(selected_table_names) < top_k_tables]
-    selected_tables = selected_tables[:top_k_tables]
+    ranked_tables = sorted(table_agg.values(), key=lambda item: item["score"], reverse=True)
+    if selected_table_names:
+        selected_tables = [item for item in ranked_tables if item["table"] in selected_table_names][:top_k_tables]
+    else:
+        selected_tables = ranked_tables[:top_k_tables]
 
     return {
         "mode": mode,

@@ -137,6 +137,46 @@ def create_vector_index(engine: Engine, table_name: str = DEFAULT_PGVECTOR_TABLE
         return "none", warnings
 
 
+def get_existing_embedding_dim(
+    engine: Engine,
+    table_name: str = DEFAULT_PGVECTOR_TABLE,
+) -> int | None:
+    try:
+        with engine.connect() as conn:
+            value = conn.execute(
+                text(
+                    f"""
+                    SELECT embedding_dim
+                    FROM {qualified_table_name(table_name)}
+                    WHERE embedding_dim IS NOT NULL
+                    LIMIT 1
+                    """
+                )
+            ).scalar_one_or_none()
+    except SQLAlchemyError:
+        return None
+    return int(value) if value is not None else None
+
+
+def delete_schema_entity_embeddings(
+    engine: Engine,
+    mode: str,
+    embedding_model: str,
+    table_name: str = DEFAULT_PGVECTOR_TABLE,
+) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                f"""
+                DELETE FROM {qualified_table_name(table_name)}
+                WHERE mode = :mode
+                  AND embedding_model = :embedding_model
+                """
+            ),
+            {"mode": mode, "embedding_model": embedding_model},
+        )
+
+
 def upsert_schema_entity_embeddings(
     engine: Engine,
     rows: list[dict[str, Any]],
