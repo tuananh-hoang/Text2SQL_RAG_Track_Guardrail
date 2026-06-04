@@ -3,15 +3,15 @@ import json
 from typing import Any
 
 from text2sql.db.postgres_utils import create_readonly_engine
-from text2sql.schema.build_schema_pgvector_index import EmbeddingModel, load_config
+from text2sql.schema.retrieval.build_schema_pgvector_index import EmbeddingModel, load_config
 from text2sql.schema.paths import V2_ENTITIES_DIR
-from text2sql.schema.pgvector_store import (
+from text2sql.schema.retrieval.pgvector_store import (
     DEFAULT_PGVECTOR_TABLE,
     MISSING_INDEX_MESSAGE,
     search_schema_entities_pgvector,
 )
-from text2sql.schema.query_decomposer import decompose_question
-from text2sql.schema.query_keyword_extractor import strip_vietnamese_accents, tokenize
+from text2sql.schema.retrieval.query_decomposer import decompose_question
+from text2sql.schema.retrieval.query_keyword_extractor import strip_vietnamese_accents, tokenize
 
 
 def load_entities(mode: str) -> list[dict[str, Any]]:

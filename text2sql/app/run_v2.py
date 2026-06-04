@@ -9,9 +9,9 @@ from uuid import uuid4
 import pandas as pd
 
 from text2sql.llm_client import create_chat_completion_with_rotation, get_llm_model, get_llm_provider
+from text2sql.schema.context.selected_schema_context_builder import build_selected_schema_context
 from text2sql.schema.paths import v2_summary_path
-from text2sql.schema.schema_retriever import retrieve_schema
-from text2sql.schema.selected_schema_context_builder import build_selected_schema_context
+from text2sql.schema.retrieval.schema_retriever import retrieve_schema
 from text2sql.sql.ast_explainer import explain_sql_structure
 from text2sql.sql.executor import execute_sql
 from text2sql.sql.validator import validate_sql
@@ -112,7 +112,7 @@ def run_question_v2(
             {
                 "vector_store": "pgvector",
                 "mode": mode,
-                "build_index_command": f"python -m text2sql.schema.build_schema_pgvector_index --mode {mode} --rebuild",
+                "build_index_command": f"python -m text2sql.schema.retrieval.build_schema_pgvector_index --mode {mode} --rebuild",
             },
         )
         result = {

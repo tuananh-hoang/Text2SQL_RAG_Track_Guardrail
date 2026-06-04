@@ -22,7 +22,7 @@ if str(ROOT_DIR) not in sys.path:
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
-from schema.schema_context_builder import build_schema_context
+from schema.context.schema_context_builder import build_schema_context
 from sql.executor import execute_sql
 from sql.repair import repair_sql
 from sql.validator import validate_sql
@@ -752,7 +752,7 @@ def main() -> int:
 
     if args.version == "v1" and not SCHEMA_PATH.exists():
         print(f"Schema summary not found: {SCHEMA_PATH}")
-        print("Run: python -m text2sql.schema.generate_schema_summary --mode product_sales")
+        print("Run: python -m text2sql.schema.summary.generate_schema_summary --mode product_sales")
         return 1
 
     test_cases = read_test_cases(test_cases_path)

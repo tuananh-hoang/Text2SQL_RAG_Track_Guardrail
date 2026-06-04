@@ -5,7 +5,7 @@ from typing import Any
 
 from text2sql.db.postgres_utils import create_admin_engine
 from text2sql.schema.paths import V2_ENTITIES_DIR
-from text2sql.schema.pgvector_store import (
+from text2sql.schema.retrieval.pgvector_store import (
     DEFAULT_PGVECTOR_TABLE,
     create_embedding_table,
     create_vector_index,
@@ -16,7 +16,7 @@ from text2sql.schema.pgvector_store import (
 )
 
 
-BASE_DIR = Path(__file__).resolve().parents[1]
+BASE_DIR = Path(__file__).resolve().parents[2]
 CONFIG_PATH = BASE_DIR / "config" / "schema_retrieval_config.json"
 RESOLVED_CONFIG_PATH = BASE_DIR / "config" / "schema_retrieval_config.resolved.json"
 

@@ -13,7 +13,7 @@ import pandas as pd
 
 from llm_client import get_llm_model, get_llm_provider
 from run_v1 import SCHEMA_PATH, add_sql_structure_trace, add_trace_step, run_question
-from schema.schema_context_builder import build_schema_context
+from schema.context.schema_context_builder import build_schema_context
 from sql.executor import execute_sql
 from sql.validator import validate_sql
 
@@ -948,7 +948,7 @@ class Text2SQLHandler(BaseHTTPRequestHandler):
         if path == "/api/schema-overview":
             if not SCHEMA_PATH.exists():
                 self.send_json(
-                    {"error": "schema/artifacts/v1/schema_summary.json is missing. Run python -m text2sql.schema.generate_schema_summary --mode product_sales."},
+                    {"error": "schema/artifacts/v1/schema_summary.json is missing. Run python -m text2sql.schema.summary.generate_schema_summary --mode product_sales."},
                     status=400,
                 )
                 return
@@ -962,7 +962,7 @@ class Text2SQLHandler(BaseHTTPRequestHandler):
         try:
             if not SCHEMA_PATH.exists():
                 self.send_json(
-                    {"error": "schema/artifacts/v1/schema_summary.json is missing. Run python -m text2sql.schema.generate_schema_summary --mode product_sales."},
+                    {"error": "schema/artifacts/v1/schema_summary.json is missing. Run python -m text2sql.schema.summary.generate_schema_summary --mode product_sales."},
                     status=400,
                 )
                 return

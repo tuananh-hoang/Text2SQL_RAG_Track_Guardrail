@@ -6,7 +6,7 @@ from typing import Any
 
 import pandas as pd
 
-from schema.schema_context_builder import build_schema_context
+from schema.context.schema_context_builder import build_schema_context
 from sql.ast_explainer import explain_sql_structure
 from sql.executor import execute_sql
 from sql.repair import repair_sql
@@ -335,7 +335,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     if not SCHEMA_PATH.exists():
         print(f"Schema summary not found: {SCHEMA_PATH}")
-        print("Run: python -m text2sql.schema.generate_schema_summary --mode product_sales")
+        print("Run: python -m text2sql.schema.summary.generate_schema_summary --mode product_sales")
         return 1
 
     args = parse_args()

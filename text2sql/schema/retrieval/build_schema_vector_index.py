@@ -1,4 +1,4 @@
-from text2sql.schema.build_schema_pgvector_index import build_pgvector_index, main
+from text2sql.schema.retrieval.build_schema_pgvector_index import build_pgvector_index, main
 
 
 def build_vector_index(mode: str) -> dict:

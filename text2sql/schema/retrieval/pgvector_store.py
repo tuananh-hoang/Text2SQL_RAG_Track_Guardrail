@@ -11,7 +11,7 @@ from text2sql.db.postgres_utils import get_readonly_url, quote_identifier
 DEFAULT_PGVECTOR_TABLE = "schema_retrieval.schema_entity_embeddings"
 MISSING_INDEX_MESSAGE = (
     "Schema pgvector index not built. Run python -m "
-    "text2sql.schema.build_schema_pgvector_index --mode <mode> --rebuild"
+    "text2sql.schema.retrieval.build_schema_pgvector_index --mode <mode> --rebuild"
 )
 
 

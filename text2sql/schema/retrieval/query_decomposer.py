@@ -3,11 +3,11 @@ from pathlib import Path
 from typing import Any
 
 from text2sql.llm_client import create_chat_completion_with_rotation, get_llm_model
-from text2sql.schema.query_keyword_extractor import extract_query_keywords_rule_based
+from text2sql.schema.retrieval.query_keyword_extractor import extract_query_keywords_rule_based
 from text2sql.versions.v1_baseline import strip_json_fence
 
 
-BASE_DIR = Path(__file__).resolve().parents[1]
+BASE_DIR = Path(__file__).resolve().parents[2]
 PROMPT_PATH = BASE_DIR / "prompts" / "query_decomposer.txt"
 CONCEPT_TYPES = {"measure", "dimension", "filter", "time", "ranking", "aggregation", "comparison", "unknown"}
 CONSTRAINT_TYPES = {"time_filter", "value_filter", "threshold", "top_k", "grouping", "unknown"}
