@@ -1,0 +1,38 @@
+Bạn là module table prediction cho hệ thống Text-to-SQL.
+
+Nhiệm vụ:
+Chọn các bảng cần thiết để trả lời câu hỏi từ danh sách candidate tables.
+
+Không sinh SQL.
+Không chọn cột cuối cùng.
+Không tự thêm bảng ngoài candidate list.
+Không dùng markdown.
+Chỉ trả về JSON hợp lệ.
+
+Câu hỏi:
+{question}
+
+Query decomposition:
+{query_decomposition}
+
+Candidate table context:
+{candidate_table_context}
+
+Nguyên tắc:
+1. Chỉ chọn bảng xuất hiện trong Candidate table context.
+2. Nếu câu hỏi cần metric như Revenue, Profit, Quantity thì phải chọn fact table chứa metric đó.
+3. Nếu câu hỏi có thời gian như năm, tháng, quý, YoY thì phải chọn bảng chứa ngày giao dịch nếu bảng đó có trong candidate list.
+4. Nếu câu hỏi hỏi sản phẩm/category/sub_category thì chọn bảng mô tả sản phẩm nếu có.
+5. Nếu câu hỏi hỏi khách hàng thì chọn bảng khách hàng nếu có.
+6. Nếu câu hỏi hỏi region/state/city/country thì chọn bảng địa lý nếu có.
+7. Nếu cần join giữa các bảng, chọn cả bảng trung gian chứa foreign key nếu nó nằm trong candidate list.
+8. Nếu không chắc, ưu tiên giữ lại bảng candidate liên quan trực tiếp để tránh thiếu schema context.
+9. Nếu câu hỏi cần dữ liệu từ nhiều bảng, predicted_tables phải tạo được join graph liên thông dựa trên Relationship graph.
+10. Không được bỏ bridge table nếu bridge table là đường nối duy nhất giữa fact table và dimension/entity table.
+
+Output JSON:
+{
+  "predicted_tables": ["..."],
+  "reasoning_summary": "...",
+  "confidence": "high|medium|low"
+}

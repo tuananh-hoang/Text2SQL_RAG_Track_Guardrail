@@ -1,4 +1,5 @@
 import json
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -67,6 +68,7 @@ def normalize_decomposition(question: str, payload: dict[str, Any], raw_payload:
     }
 
 
+@lru_cache(maxsize=512)
 def decompose_question(question: str, model_provider: str = "configured") -> dict[str, Any]:
     try:
         prompt = load_prompt(question)

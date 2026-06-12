@@ -9,11 +9,7 @@ Không khẳng định tên cột nếu không có schema.
 Không dùng markdown.
 Chỉ trả về JSON hợp lệ.
 
-Câu hỏi:
-{question}
-
-Hãy trả về JSON theo format:
-
+Format output:
 {
   "retrieval_queries": [
     "..."
@@ -43,3 +39,135 @@ Nguyên tắc:
 - schema_concepts chỉ mô tả vai trò ngữ nghĩa, không quyết định column cuối cùng.
 - Nếu một phần của câu hỏi mơ hồ, đặt concept_type hoặc constraint_type là "unknown".
 - Không tự thêm thông tin không có trong câu hỏi.
+- Với câu hỏi có thời gian, phải tạo retrieval query riêng cho năm/tháng/quý/ngày và đưa vào date_expressions.
+- Với câu hỏi cần join nhiều entity như sản phẩm + doanh thu + năm, tách thành nhiều retrieval_queries ngắn.
+
+Ví dụ 1:
+Câu hỏi: Top 5 sản phẩm có tổng Revenue cao nhất trong năm 2024 là gì?
+Output:
+{
+  "retrieval_queries": [
+    "sản phẩm",
+    "tổng Revenue",
+    "năm 2024",
+    "top 5"
+  ],
+  "schema_concepts": [
+    {
+      "phrase": "sản phẩm",
+      "concept_type": "dimension",
+      "description": "entity cần xếp hạng"
+    },
+    {
+      "phrase": "Revenue",
+      "concept_type": "measure",
+      "description": "metric doanh thu cần tổng hợp"
+    },
+    {
+      "phrase": "năm 2024",
+      "concept_type": "time",
+      "description": "điều kiện thời gian"
+    },
+    {
+      "phrase": "Top 5",
+      "concept_type": "ranking",
+      "description": "giới hạn top-k"
+    }
+  ],
+  "constraints": [
+    {
+      "phrase": "năm 2024",
+      "constraint_type": "time_filter",
+      "description": "lọc dữ liệu trong năm 2024"
+    },
+    {
+      "phrase": "Top 5",
+      "constraint_type": "top_k",
+      "description": "lấy 5 entity đứng đầu"
+    }
+  ],
+  "numbers": [5, 2024],
+  "date_expressions": ["năm 2024"],
+  "intent_summary": "Tìm top 5 sản phẩm theo tổng doanh thu trong năm 2024."
+}
+
+Ví dụ 2:
+Câu hỏi: Có bao nhiêu khách hàng mua hàng trong cả năm 2023 và năm 2024?
+Output:
+{
+  "retrieval_queries": [
+    "khách hàng",
+    "mua hàng",
+    "năm 2023",
+    "năm 2024",
+    "cả năm 2023 và năm 2024"
+  ],
+  "schema_concepts": [
+    {
+      "phrase": "khách hàng",
+      "concept_type": "dimension",
+      "description": "entity cần đếm"
+    },
+    {
+      "phrase": "mua hàng",
+      "concept_type": "filter",
+      "description": "hành vi phát sinh đơn hàng"
+    },
+    {
+      "phrase": "cả năm 2023 và năm 2024",
+      "concept_type": "comparison",
+      "description": "cohort/intersection giữa hai năm"
+    }
+  ],
+  "constraints": [
+    {
+      "phrase": "năm 2023",
+      "constraint_type": "time_filter",
+      "description": "lọc dữ liệu năm 2023"
+    },
+    {
+      "phrase": "năm 2024",
+      "constraint_type": "time_filter",
+      "description": "lọc dữ liệu năm 2024"
+    }
+  ],
+  "numbers": [2023, 2024],
+  "date_expressions": ["năm 2023", "năm 2024"],
+  "intent_summary": "Đếm khách hàng có giao dịch trong cả hai năm 2023 và 2024."
+}
+
+Ví dụ 3:
+Câu hỏi: Tổng lợi nhuận theo từng khu vực là bao nhiêu?
+Output:
+{
+  "retrieval_queries": [
+    "tổng lợi nhuận",
+    "khu vực",
+    "theo từng khu vực"
+  ],
+  "schema_concepts": [
+    {
+      "phrase": "lợi nhuận",
+      "concept_type": "measure",
+      "description": "metric cần tổng hợp"
+    },
+    {
+      "phrase": "khu vực",
+      "concept_type": "dimension",
+      "description": "dimension dùng để nhóm"
+    }
+  ],
+  "constraints": [
+    {
+      "phrase": "theo từng khu vực",
+      "constraint_type": "grouping",
+      "description": "group by theo khu vực"
+    }
+  ],
+  "numbers": [],
+  "date_expressions": [],
+  "intent_summary": "Tính tổng lợi nhuận theo từng khu vực."
+}
+
+Câu hỏi:
+{question}

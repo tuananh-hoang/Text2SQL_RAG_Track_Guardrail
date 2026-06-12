@@ -19,6 +19,7 @@ from text2sql.schema.retrieval.pgvector_store import (
 BASE_DIR = Path(__file__).resolve().parents[2]
 CONFIG_PATH = BASE_DIR / "config" / "schema_retrieval_config.json"
 RESOLVED_CONFIG_PATH = BASE_DIR / "config" / "schema_retrieval_config.resolved.json"
+_SENTENCE_TRANSFORMER_CACHE: dict[str, Any] = {}
 
 
 def load_config() -> dict[str, Any]:
@@ -51,7 +52,11 @@ class EmbeddingModel:
         errors = []
         for model_name in [name for name in candidates if name]:
             try:
+                if model_name in _SENTENCE_TRANSFORMER_CACHE:
+                    self.model_name = model_name
+                    return _SENTENCE_TRANSFORMER_CACHE[model_name]
                 model = SentenceTransformer(model_name)
+                _SENTENCE_TRANSFORMER_CACHE[model_name] = model
                 self.model_name = model_name
                 return model
             except Exception as exc:  # model download/load failures differ by backend

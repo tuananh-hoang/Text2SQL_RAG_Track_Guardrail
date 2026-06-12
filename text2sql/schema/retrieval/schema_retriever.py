@@ -141,6 +141,8 @@ def retrieve_schema(
     top_k_entities: int = 20,
     top_k_columns: int = 8,
     top_k_tables: int = 5,
+    use_relative_cutoff: bool = True,
+    min_score: float = 0.0,
 ) -> dict[str, Any]:
     config = load_config()
     table_name = config.get("pgvector_table", DEFAULT_PGVECTOR_TABLE)
@@ -237,9 +239,12 @@ def retrieve_schema(
 
     ranked_columns = sorted(column_agg.values(), key=lambda item: item["score"], reverse=True)
     if ranked_columns:
-        top_column_score = ranked_columns[0]["score"]
-        score_cutoff = max(0.35, top_column_score * 0.70)
-        selected_columns = [item for item in ranked_columns if item["score"] >= score_cutoff][:top_k_columns]
+        if use_relative_cutoff:
+            top_column_score = ranked_columns[0]["score"]
+            score_cutoff = max(0.35, top_column_score * 0.70)
+            selected_columns = [item for item in ranked_columns if item["score"] >= score_cutoff][:top_k_columns]
+        else:
+            selected_columns = [item for item in ranked_columns if item["score"] >= min_score][:top_k_columns]
         if not selected_columns:
             selected_columns = ranked_columns[:1]
     else:
@@ -264,6 +269,8 @@ def retrieve_schema(
         "matched_entities": matched_entities,
         "column_scores": selected_columns,
         "table_scores": selected_tables,
+        "all_column_scores": ranked_columns,
+        "all_table_scores": ranked_tables,
         "matched_relationships": matched_relationships,
     }
 

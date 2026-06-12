@@ -13,8 +13,16 @@ DEFAULT_MODELS = {
     "groq": "llama-3.3-70b-versatile",
 }
 KEY_ENV_NAMES = {
-    "openai": ("OPENAI_API_KEY", "OPENAI_API_KEY_2"),
-    "groq": ("GROQ_API_KEY", "GROQ_API_KEY_2", "OPENAI_API_KEY", "OPENAI_API_KEY_2"),
+    # fix: include the third configured key slot in provider rotation.
+    "openai": ("OPENAI_API_KEY", "OPENAI_API_KEY_2", "OPENAI_API_KEY_3"),
+    "groq": (
+        "GROQ_API_KEY",
+        "GROQ_API_KEY_2",
+        "GROQ_API_KEY_3",
+        "OPENAI_API_KEY",
+        "OPENAI_API_KEY_2",
+        "OPENAI_API_KEY_3",
+    ),
 }
 RATE_LIMITED_KEY_NAMES: set[str] = set()
 

@@ -153,3 +153,62 @@ def build_selected_schema_context(
     if not lines:
         raise ValueError("No selected schema context could be built from selected tables/columns")
     return "\n".join(lines).strip()
+
+
+def normalize_table_name(table_name: str) -> str:
+    return str(table_name).split(".")[-1].strip()
+
+
+def build_full_table_schema_context(
+    schema_summary_path: str,
+    predicted_tables: list[str],
+    mode: str = "mock_relational",
+) -> str:
+    schema = load_schema(schema_summary_path)
+    tables = iter_tables(schema)
+    selected_table_set = {normalize_table_name(table) for table in predicted_tables if str(table).strip()}
+    if not selected_table_set:
+        raise ValueError("No predicted tables supplied for full table schema context")
+
+    relationships = direct_relationships(schema, selected_table_set, matched_relationships=None)
+    lines: list[str] = []
+
+    for table in tables:
+        table_name = table["table_name"]
+        if table_name not in selected_table_set:
+            continue
+
+        schema_name = table.get("schema_name") or schema.get("schema_name", "public")
+        if table.get("table_description"):
+            lines.append(f"-- Table {table_name}: {table['table_description']}")
+        if table.get("table_aliases"):
+            lines.append(f"-- Table aliases: {', '.join(table['table_aliases'])}")
+        if table.get("row_count") is not None or table.get("column_count") is not None:
+            lines.append(
+                f"-- Table stats: rows={table.get('row_count', 'unknown')}, "
+                f"columns={table.get('column_count', len(table.get('columns', [])))}"
+            )
+
+        rendered_table_name = f"{schema_name}.{table_name}" if mode == "mock_relational" else table_name
+        lines.append(f"CREATE TABLE {rendered_table_name} (")
+        columns = table.get("columns", [])
+        for index, column in enumerate(columns):
+            comma = "," if index < len(columns) - 1 else ""
+            evidence = render_column_evidence(column)
+            line = f"    {quote_identifier(column['name'])} {column['type'].upper()}{comma}"
+            if evidence:
+                line += f" -- {evidence}"
+            lines.append(line)
+        lines.append(");")
+        lines.append("")
+
+    if relationships:
+        lines.append("-- Relationships between predicted tables:")
+        for rel in relationships:
+            lines.append(
+                f"-- {rel['from_table']}.{rel['from_column']} = {rel['to_table']}.{rel['to_column']}"
+            )
+
+    if not lines:
+        raise ValueError("No full table schema context could be built from predicted tables")
+    return "\n".join(lines).strip()
